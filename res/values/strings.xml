@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HU Launcher</string>
+    <string name="debloat">Debloat</string>
+    <string name="remote_label">HU Launcher remote &amp; helper</string>
+    <string name="remote_desc">Lets your PC tap and type on this screen over the PIN-protected PC link, and presses Disable / Force stop for you when you ask the launcher to. Does nothing otherwise.</string>
+    <string name="firewall">Network firewall</string>
+</resources>

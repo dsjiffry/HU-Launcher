@@ -1,0 +1,33 @@
+{
+  "com.adups.fota": { "v": "bloat", "why": "Adups OTA client - Firebase tracking, the vendor behind the 2016 data-collection scandal; this unit gets no OTAs" },
+  "com.adups.fota.sysoper": { "v": "bloat", "why": "Helper for the Adups OTA client" },
+  "com.abfota.systemUpdate": { "v": "bloat", "why": "Second OTA client (Redstone) - starts at boot, can reboot the unit; vendor updates come by USB anyway" },
+  "com.baidu.map.location": { "v": "bloat", "why": "Sends Wi-Fi/cell data to Baidu for location; Google Play services already does this" },
+  "com.hcn.log": { "v": "bloat", "why": "Log uploader - reads system logs, location and MAC address and sends them online" },
+  "com.mediatek.duraspeed": { "v": "bloat", "why": "MediaTek DuraSpeed kills background apps - can stop Spotify or Maps in the background" },
+  "com.mediatek.mtklogger": { "v": "bloat", "why": "MediaTek debug logger" },
+  "com.mediatek.ygps": { "v": "bloat", "why": "GPS test tool" },
+  "com.android.galaxy4": { "v": "bloat", "why": "Live wallpaper (Black Hole)" },
+  "com.android.wallpaper.holospiral": { "v": "bloat", "why": "Live wallpaper (Holo Spiral)" },
+  "com.android.wallpaper.livepicker": { "v": "bloat", "why": "Live wallpaper picker" },
+  "com.android.bookmarkprovider": { "v": "bloat", "why": "Browser bookmarks - no stock browser here" },
+  "com.android.providers.partnerbookmarks": { "v": "bloat", "why": "Partner bookmarks - no stock browser here" },
+  "com.android.calllogbackup": { "v": "bloat", "why": "Call log backup - not needed" },
+  "com.hcn.autouserguide": { "v": "bloat", "why": "Vendor instruction manual" },
+  "com.google.android.feedback": { "v": "bloat", "why": "Play Store crash-report sender" },
+
+  "com.hcn.changedapp": { "v": "maybe", "why": "Factory test app (touch/LCD/ageing tests), starts at boot, 38 MB - usually safe to disable" },
+  "com.hcn.screensaver": { "v": "maybe", "why": "Vendor screensaver - disable if it covers the clock when idle" },
+  "com.hcn.autobarcode": { "v": "maybe", "why": "Barcode/QR scanner - not needed day to day" },
+  "com.hcn.AutoMediaPlayer": { "v": "maybe", "why": "Vendor music player - keep if you play music from USB" },
+  "com.hcn.gallery": { "v": "maybe", "why": "Vendor photo viewer - keep if you view photos/videos from USB" },
+  "com.google.android.youtube": { "v": "maybe", "why": "YouTube - your call" },
+
+  "com.hcn.autosetting": { "v": "keep", "why": "Car Settings - needed for the unit's car config" },
+  "com.hcn.autocan": { "v": "keep", "why": "CAN bus car info (doors, A/C, etc.)" },
+  "com.hcn.themepicker": { "v": "keep", "why": "Theme for the stock launcher (your backup home)" },
+  "com.mediatek.filemanager": { "v": "keep", "why": "File manager - you need it to install APKs" },
+  "com.android.providers.calendar": { "v": "keep", "why": "Calendar storage used by Google sync" },
+  "com.mediatek.engineermode": { "v": "keep", "why": "Hidden test menu - does not run in the background" },
+  "com.hcn.autofloatwindow": { "v": "keep", "why": "Vendor floating buttons / accessibility service" }
+}

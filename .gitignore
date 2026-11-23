@@ -1,0 +1,22 @@
+# Build outputs
+build/
+*.apk
+*.idsig
+
+# Signing keys (each builder gets their own; never publish)
+signing.keystore
+*.keystore
+*.jks
+
+# Data pulled from your own head unit by pc/hu.ps1
+pc/apps.json
+pc/verdicts.json
+pc/*.jpg
+pc/*.log
+
+# Screenshots and logs anywhere (they come from your own device). Icons are vector XML.
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.log

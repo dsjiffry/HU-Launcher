@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HU Remote</title>
+<style>
+  :root { --bg:#0b0d12; --card:#1a1f2a; --raised:#262c3a; --text:#fff; --dim:#9aa3b2; --accent:#1db954; --red:#ff5a5f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display:flex; align-items:center; gap:10px; padding:12px 16px; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0 12px 0 0; font-weight:600; }
+  button { background:var(--raised); color:var(--text); border:0; border-radius:10px; padding:9px 14px; font:inherit; cursor:pointer; }
+  button:hover { filter:brightness(1.25); }
+  button.primary { background:var(--accent); color:#000; font-weight:600; }
+  input { background:var(--raised); color:var(--text); border:0; border-radius:10px; padding:9px 12px; font:inherit; }
+  #status { color:var(--dim); margin-left:auto; }
+  main { display:flex; justify-content:center; padding:0 16px 16px; }
+  #wrap { position:relative; max-width:100%; }
+  #screen { display:block; max-width:100%; max-height:calc(100vh - 120px); border-radius:12px; background:#000;
+            cursor:crosshair; user-select:none; -webkit-user-drag:none; touch-action:none; }
+  #overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center;
+             padding:24px; color:var(--dim); background:rgba(0,0,0,.6); border-radius:12px; }
+  #pinbox { display:flex; gap:8px; align-items:center; justify-content:center; padding:80px 16px; }
+  .hidden { display:none !important; }
+  .warn { color:#ffb443; }
+</style>
+</head>
+<body>
+<div id="pinbox">
+  <span>PIN shown on the head unit:</span>
+  <input id="pin" inputmode="numeric" maxlength="6" size="8" autofocus>
+  <button class="primary" id="go">Connect</button>
+</div>
+<div id="app" class="hidden">
+  <header>
+    <h1>HU Remote</h1>
+    <button data-k="back">&#8592; Back</button>
+    <button data-k="home">Home</button>
+    <button data-k="recents">Recents</button>
+    <button data-k="notifications">Notifications</button>
+    <input id="text" placeholder="Type into focused field" size="24">
+    <button id="send">Send text</button>
+    <button id="shot">Save screenshot</button>
+    <span id="status"></span>
+  </header>
+  <main>
+    <div id="wrap">
+      <img id="screen" alt="Head unit screen" draggable="false">
+      <div id="overlay">Starting screen share&hellip;<br>Accept the prompt on the head unit (tick "Don't show again" to skip it next time).</div>
+    </div>
+  </main>
+</div>
+<script>
+let pin = sessionStorage.getItem('hupin') || '';
+const $ = id => document.getElementById(id);
+const status = (t, warn) => { $('status').textContent = t; $('status').className = warn ? 'warn' : ''; };
+
+async function api(path, body) {
+  const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'X-Pin': pin, 'Content-Type': 'application/json' },
+                                body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { sessionStorage.removeItem('hupin'); location.reload(); }
+  return r.json();
+}
+
+async function connect() {
+  pin = $('pin').value.trim() || pin;
+  const st = await fetch('/remote/status', { headers: { 'X-Pin': pin } });
+  if (st.status === 401) { alert('Wrong PIN'); return; }
+  if (st.status === 429) { alert('Too many wrong PINs from this PC - wait a minute and try again.'); return; }
+  sessionStorage.setItem('hupin', pin);
+  $('pinbox').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  let s = await api('/remote/start', {});
+  for (let i = 0; i < 60 && !s.capturing; i++) { await new Promise(r => setTimeout(r, 1000)); s = await api('/remote/status'); }
+  if (!s.capturing) { $('overlay').textContent = 'Screen share was not accepted on the head unit. Reload to try again.'; return; }
+  $('overlay').classList.add('hidden');
+  startStream();
+  status(s.touch ? 'Connected' : s.hint, !s.touch);
+}
+
+// The PIN never goes in a URL: get a one-time token for the <img> stream.
+async function startStream() {
+  const r = await api('/stream/token', {});
+  $('screen').src = '/stream?t=' + r.token;
+}
+
+$('go').onclick = connect;
+$('pin').onkeydown = e => { if (e.key === 'Enter') connect(); };
+if (pin) connect();
+
+// Pointer -> tap / long-press / swipe, as fractions of the picture.
+const img = $('screen');
+let down = null;
+const frac = e => { const r = img.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }; };
+img.addEventListener('pointerdown', e => { e.preventDefault(); img.setPointerCapture(e.pointerId); down = { ...frac(e), t: performance.now(), px: e.clientX, py: e.clientY }; });
+img.addEventListener('pointerup', async e => {
+  if (!down) return;
+  const up = frac(e), dt = performance.now() - down.t, dist = Math.hypot(e.clientX - down.px, e.clientY - down.py);
+  const d = down; down = null;
+  let body;
+  if (dist < 8) body = dt > 500 ? { type: 'long', x: d.x, y: d.y, ms: dt } : { type: 'tap', x: d.x, y: d.y };
+  else body = { type: 'swipe', x: d.x, y: d.y, x2: up.x, y2: up.y, ms: Math.min(Math.max(dt, 120), 1500) };
+  const r = await api('/input', body);
+  if (!r.ok && r.error) status(r.error, true);
+});
+img.addEventListener('wheel', e => {
+  e.preventDefault();
+  const p = frac(e), dy = Math.sign(e.deltaY) * 0.25;
+  api('/input', { type: 'swipe', x: p.x, y: p.y, x2: p.x, y2: Math.min(0.98, Math.max(0.02, p.y - dy)), ms: 200 });
+}, { passive: false });
+document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => api('/input', { type: b.dataset.k }));
+$('send').onclick = async () => {
+  const r = await api('/input', { type: 'text', text: $('text').value });
+  status(r.ok ? 'Text sent' : 'Tap a text field on the screen first', !r.ok);
+  if (r.ok) $('text').value = '';
+};
+$('text').onkeydown = e => { if (e.key === 'Enter') $('send').click(); };
+$('shot').onclick = async () => {
+  const r = await fetch('/screen.jpg', { headers: { 'X-Pin': pin } });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(await r.blob());
+  a.download = 'headunit-' + new Date().toISOString().replace(/[:.]/g, '-') + '.jpg';
+  a.click();
+};
+let retries = 0;
+img.onerror = () => {
+  if (retries++ < 3) { status('Reconnecting…', true); setTimeout(startStream, 1500); }
+  else status('Stream ended - reload to reconnect', true);
+};
+img.onload = () => { retries = 0; };
+</script>
+</body>
+</html>
