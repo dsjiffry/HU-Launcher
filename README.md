@@ -1,19 +1,23 @@
 # HU Launcher
 
-A light home screen and debloater for unbranded Android car head units.
+A light home screen and debloater for cheap, unbranded Android car head units.
 
 ## Why this exists
-Cheap no-name Android head units ship with weak hardware (this one: MT8163, 2 GB RAM,
-1024×600) and a lot of preinstalled software you never asked for. That includes OTA clients,
-log uploaders, location services that report to third parties, and vendor "speed-up" tools that
-kill your music app. On top of that comes a heavy stock launcher. HU Launcher was made to deal
-with these units:
+Cheap no-name Android head units usually have weak hardware: an old MediaTek or Rockchip chip,
+1–2 GB of RAM and a 1024×600 screen. They also come with a lot of preinstalled software you never
+asked for, such as OTA clients, log uploaders, location services that report to third parties,
+and vendor "speed-up" tools that kill your music app. On top of that comes a heavy stock launcher.
+Many of these units also report a newer Android version than they really run. HU Launcher was made
+to deal with them:
 - **Keep resource use down:** a home screen that uses about 0% CPU when idle and around 20 MB
   of RAM, plus tools to disable bloat or keep it stopped.
 - **Protect your privacy:** find and switch off the apps that phone home. A per-app firewall
   cuts the rest off the internet, with no root and no cloud service.
 
-All of it runs on the unit or on your own PC on your own Wi-Fi. Nothing is sent anywhere else.
+All of it runs on the unit, or on your own PC on your own Wi-Fi. Nothing is sent anywhere else.
+
+It works on Android 7 to 9 head units, and is also fine on newer ones. It has been tested on an
+MT8163 unit (2 GB RAM, 1024×600) that claims Android 13 but runs Android 9.
 
 ## Features
 - **Home:** large clock and date, a large now-playing card (album art, blurred art backdrop,
@@ -24,13 +28,16 @@ All of it runs on the unit or on your own PC on your own Wi-Fi. Nothing is sent 
 - **Debloat:** scans every package and sorts it into Bloat, Maybe, Keep or Disabled. It then
   goes through them one by one: it opens App info, you tap Disable, and the list moves on by itself.
 - **Files:** a built-in file manager (All apps → Files) for browsing internal storage, USB and SD. You can rename files and folders (extension included), install APKs, read text files and extract zips. It runs in its own process, so it never slows down the home screen.
-- **Let PC decide:** the unit runs a small server on your Wi-Fi with a PIN (`_hulauncher._tcp`,
-  port 8765). A PC reads the full app list and sends back verdicts.
+- **Let PC decide (made for Claude Code):** every head-unit vendor ships different packages, so
+  no built-in list can know them all. This mode lets [Claude Code](https://claude.com/claude-code)
+  on your PC connect to the unit over your Wi-Fi (PIN-protected, `_hulauncher._tcp`, port 8765).
+  It reads the full app list with permissions, services and file paths, works out what each app
+  does, and sends back a verdict for each one: bloat, maybe or keep, with a reason.
 - **Setup screen:** on first start, one screen lists every permission (home app, notification access, accessibility, usage access, storage, install APKs). Each card opens that exact setting, where Android allows it, and shows a tick when it's on. You can open it again from Tools → Permissions & setup.
 - **Remote control:** turn on Tools → PC link, then open `http://<unit-ip>:8765` in a PC browser. You see the screen live and can click, swipe, scroll, type and press Back/Home. Screen sharing asks once each time it starts (tick "Don't show again"). Touch needs the "HU Launcher remote" accessibility service, which you turn on once.
 - **Helper (same accessibility service):** Debloat → Review → **Auto-disable all** presses Disable and confirms for each app. Activity can **force-stop** an app or **stop background apps** (only apps you installed, never the one playing music). Screen-share prompts are accepted automatically.
 - **Network firewall:** a VPN-based allow-list (Tools → Network firewall). Allowed apps bypass it entirely, so they run at full speed. Every other app is cut off. It comes back on by itself after a reboot.
-- **Activity:** live RAM, CPU clocks and temperature, plus each app's screen time and data used today (needs Usage access). Android 9 does not let apps see other apps' CPU or RAM.
+- **Activity:** live RAM, CPU clocks and temperature, plus each app's screen time and data used today (needs Usage access). Android 8 and newer don't let apps see other apps' CPU or RAM.
 
 Plain Java and framework Views only: no AndroidX, Compose or native code. The APK is about 130 KB.
 
@@ -38,7 +45,9 @@ Plain Java and framework Views only: no AndroidX, Compose or native code. The AP
 Get `HULauncher.apk` from [Releases](../../releases), or build it yourself (below). Release APKs
 are signed with the author's key. If you build your own, uninstall the release first: Android
 won't update an app signed with a different key.
-Only APIs up to 28 are used, because the unit claims Android 13 but its framework is really Pie.
+
+Only APIs up to 28 (Android 9) are used, and the app never trusts the reported Android version,
+because many units claim a newer one than they really run.
 
 ## Build
 ```powershell
@@ -55,20 +64,26 @@ Android only installs an update if it's signed with the same key, so keep that f
    and the art. Play, pause and skip work without it.
 4. When asked, choose **Scan now** (later: All apps → Debloat).
 
-## Let the PC decide
-1. On the unit: All apps → Debloat → **Let PC decide**. Note the PIN.
-2. On a PC on the same Wi-Fi:
-   ```powershell
-   .\pc\hu.ps1 pull -Pin 123456
-   ```
-   The script finds the unit by itself and saves `pc\apps.json`.
-3. Write `pc\verdicts.json` (`{"pkg": {"v": "bloat|maybe|keep", "why": "..."}}`). Start from
-   `pc\verdicts.example.json`, a real list for an MT8163 "hcn" unit. You can also have Claude
-   write it from `apps.json`, then run:
-   ```powershell
-   .\pc\hu.ps1 push -Pin 123456
-   ```
-4. On the unit, open the Bloat tab and tap **Review … one by one**.
+## Let the PC decide (with Claude Code)
+This mode is how Claude Code analyses your unit's apps. Each brand of cheap head unit ships its
+own mix of vendor packages, and Claude Code can look at what each one asks for and does, then
+decide.
+1. On the unit: All apps → Debloat → **Let PC decide** (or Tools → PC link). Note the PIN.
+2. On a PC on the same Wi-Fi, open Claude Code in this repo and ask it something like:
+   > Connect to my head unit with PIN 123456 and decide which apps are bloat.
+
+   Claude Code then does the following with `pc\hu.ps1`:
+   - Runs `pull`, which finds the unit and saves `pc\apps.json`. That file holds every package
+     with its permissions, services, receivers and install path.
+   - Writes `pc\verdicts.json` (`{"pkg": {"v": "bloat|maybe|keep", "why": "..."}}`).
+   - Runs `push` to send the verdicts to the unit.
+
+   With the helper on, it can also disable the apps for you (`disable`), put locked ones on the
+   keep-stopped list (`keep add`), and check the result with screenshots.
+3. On the unit, open the Bloat tab and tap **Review … one by one**, or **Auto-disable all**.
+
+You can also do it by hand: run the same `hu.ps1 pull` / `push` commands and write the
+verdicts yourself. `pc\verdicts.example.json` is a real example from one MediaTek unit.
 
 Order of priority: your own choices (long-press a row) beat PC verdicts, and PC verdicts beat the
 built-in rules. The built-in rules are cautious. Anything that looks like car hardware (CAN bus,
@@ -84,7 +99,7 @@ MCU, radio, Bluetooth, cameras, steering keys, vendor core) and every other home
   - **Apps that keep coming back:** each return after a force stop doubles the wait before the next one (10 min → 24 h). So it can never get stuck in a stop/restart loop, and it never interrupts another app you're using.
 - Installing over the PC link needs a tap on **Install/Update** on Android 14 and newer, which hide
   the installer's buttons from accessibility services. On Android 9 to 13 the helper presses them for you.
-- Android 9 lets apps change files only on internal storage. USB sticks and SD cards can be browsed and opened, but renaming or extracting on them fails with a clear message.
+- Most head units let apps change files only on internal storage. USB sticks and SD cards can be browsed and opened, but renaming or extracting on them fails with a clear message.
 - Some Chinese units set their own launcher back as home after a reboot. If that happens, disable
   the stock launcher only once HU Launcher works well as home.
 
