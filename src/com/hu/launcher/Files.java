@@ -404,6 +404,7 @@ public class Files extends Activity {
         if (!it.dir && it.kind != TEXT) { labels.add("View as text"); acts.add(() -> openText(it.f)); }
         if (!it.dir) { labels.add("Open with another app"); acts.add(() -> openWith(it.f, true)); }
         if (it.kind == ZIP) { labels.add("Extract here"); acts.add(() -> unzip(it.f)); }
+        labels.add("Delete"); acts.add(() -> confirmDelete(it));
         labels.add("Cancel"); acts.add(null);
         BigMenu.show(this, it.name, it.dir ? null : size(it.size), labels.toArray(new String[0]), idx -> {
             Runnable r = acts.get(idx);
@@ -443,6 +444,58 @@ public class Files extends Activity {
         } catch (ActivityNotFoundException e) {
             Toast.makeText(this, "The package installer is missing", Toast.LENGTH_LONG).show();
         }
+    }
+
+    /** Folders whose loss breaks other apps or the storage itself: never deleted from here. */
+    private static boolean protectedPath(File f) {
+        String p = f.getAbsolutePath();
+        File parent = f.getParentFile();
+        if (parent == null || p.equals("/") || p.matches("/storage(/[^/]+)?/?") || p.matches("/storage/emulated/\\d+/?")
+                || p.startsWith("/system") || p.startsWith("/data") || p.startsWith("/proc")) return true;
+        // <storage root>/Android holds other apps' data and OBB files.
+        String name = f.getName();
+        return name.equals("Android") && (parent.getAbsolutePath().matches("/storage/emulated/\\d+")
+                || parent.getParentFile() != null && parent.getParentFile().getAbsolutePath().equals("/storage"));
+    }
+
+    /** Delete asks first: the safe choice is the big green default, Delete is the second button. */
+    private void confirmDelete(final Item it) {
+        if (protectedPath(it.f)) {
+            Toast.makeText(this, it.name + " is a system folder - other apps need it", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String msg = (it.dir ? "This folder and everything inside it" : "This file") + " will be deleted for good. There is no recycle bin.";
+        BigMenu.show(this, "Delete " + it.name + "?", msg, new String[]{"Cancel", "Delete permanently"}, idx -> {
+            if (idx == 1) delete(it);
+        });
+    }
+
+    private void delete(final Item it) {
+        Toast.makeText(this, "Deleting " + it.name + "…", Toast.LENGTH_SHORT).show();
+        io.execute(() -> {
+            int[] failed = {0};
+            deleteTree(it.f, failed, 0);
+            boolean gone = !it.f.exists();
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                Toast.makeText(this, gone ? it.name + " deleted"
+                        : writeHint(failed[0] + " item(s) couldn't be deleted"), Toast.LENGTH_LONG).show();
+                load(dir, false);
+            });
+        });
+    }
+
+    /** Depth-first delete; never follows symlinks out of the folder (deletes the link itself). */
+    private static void deleteTree(File f, int[] failed, int depth) {
+        if (depth > 64) { failed[0]++; return; }
+        boolean link;
+        try { link = !f.getCanonicalPath().equals(f.getAbsoluteFile().getParentFile().getCanonicalPath() + "/" + f.getName()); }
+        catch (IOException e) { link = true; }
+        if (f.isDirectory() && !link) {
+            File[] kids = f.listFiles();
+            if (kids != null) for (File k : kids) deleteTree(k, failed, depth + 1);
+        }
+        if (!f.delete() && f.exists()) failed[0]++;
     }
 
     /** Rename dialog: the whole name is editable (extension too); the base name is pre-selected. */

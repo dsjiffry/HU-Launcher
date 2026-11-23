@@ -93,6 +93,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         MediaListener.listener = this;
         music.start();
         Keeper.homeResumed(this);
+        Updater.maybeCheck(this); // once a day at most, background thread
         if (!onboardShown) {
             handler.removeCallbacks(onboardStep);
             handler.postDelayed(onboardStep, 600);
@@ -434,7 +435,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
 
     private void toolsMenu() {
         dialog = BigMenu.show(this, "Tools", null, new String[]{"Activity & resources", "Network firewall",
-                "Debloat", PcLink.running() ? "PC link (on)" : "PC link & remote", "Permissions & setup", "Cancel"}, idx -> {
+                "Debloat", PcLink.running() ? "PC link (on)" : "PC link & remote", "Permissions & setup", "Updates", "Cancel"}, idx -> {
             if (idx == 0) startActivity(new Intent(this, Monitor.class));
             else if (idx == 1) startActivity(new Intent(this, Network.class));
             else if (idx == 2) startActivity(new Intent(this, Debloat.class));
@@ -443,7 +444,29 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
                 handler.postDelayed(this::pcLinkDialog, 400);
             }
             else if (idx == 4) startActivity(new Intent(this, Setup.class));
+            else if (idx == 5) updatesMenu();
         });
+    }
+
+    private void updatesMenu() {
+        String version;
+        try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
+        catch (PackageManager.NameNotFoundException e) { version = "?"; }
+        final boolean auto = Updater.autoEnabled(this);
+        dialog = BigMenu.show(this, "Updates", "You have version " + version + ". Updates come from this app's GitHub releases"
+                        + " and show up as a quiet notification. The check sends no data about you or this unit.",
+                new String[]{"Check now", auto ? "Automatic checks: On" : "Automatic checks: Off", "Close"}, idx -> {
+                    if (idx == 0) {
+                        Toast.makeText(this, "Checking GitHub…", Toast.LENGTH_SHORT).show();
+                        Updater.checkNow(this, (ver, err) -> Toast.makeText(this,
+                                err != null ? "Couldn't check: " + err
+                                        : ver != null ? "Version " + ver + " is available - see the notification"
+                                        : "You have the latest version", Toast.LENGTH_LONG).show());
+                    } else if (idx == 1) {
+                        Updater.setAuto(this, !auto);
+                        Toast.makeText(this, auto ? "Automatic update checks off" : "Will check once a day", Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     private void pcLinkDialog() {

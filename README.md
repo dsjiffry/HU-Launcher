@@ -29,7 +29,9 @@ to deal with them:
 - **Protect your privacy:** find and switch off the apps that phone home. A per-app firewall
   cuts the rest off the internet, with no root and no cloud service.
 
-All of it runs on the unit, or on your own PC on your own Wi-Fi. Nothing is sent anywhere else.
+All of it runs on the unit, or on your own PC on your own Wi-Fi. The only internet request the app
+makes is a once-a-day update check that reads this repo's latest release from GitHub. It sends no
+data about you or the unit, and you can turn it off in Tools → Updates.
 
 **Common reasons people end up here:**
 - The head unit is slow or laggy.
@@ -50,7 +52,7 @@ MT8163 unit (2 GB RAM, 1024×600) that claims Android 13 but runs Android 9.
   and swipe down to close. Long-press an app to pin it, open App info, or uninstall it.
 - **Debloat:** scans every package and sorts it into Bloat, Maybe, Keep or Disabled. It then
   goes through them one by one: it opens App info, you tap Disable, and the list moves on by itself.
-- **Files:** a built-in file manager (All apps → Files) for browsing internal storage, USB and SD. You can rename files and folders (extension included), install APKs, read text files and extract zips. It runs in its own process, so it never slows down the home screen.
+- **Files:** a built-in file manager (All apps → Files) for browsing internal storage, USB and SD. You can rename files and folders (extension included), delete them (with a confirmation step; system folders such as `Android` are protected), install APKs, read text files and extract zips. It runs in its own process, so it never slows down the home screen.
 - **Let PC decide (made for Claude Code):** every head-unit vendor ships different packages, so
   no built-in list can know them all. This mode lets [Claude Code](https://claude.com/claude-code)
   on your PC connect to the unit over your Wi-Fi (PIN-protected, `_hulauncher._tcp`, port 8765).
@@ -60,6 +62,10 @@ MT8163 unit (2 GB RAM, 1024×600) that claims Android 13 but runs Android 9.
 - **Remote control:** turn on Tools → PC link, then open `http://<unit-ip>:8765` in a PC browser. You see the screen live and can click, swipe, scroll, type and press Back/Home. Screen sharing asks once each time it starts (tick "Don't show again"). Touch needs the "HU Launcher remote" accessibility service, which you turn on once.
 - **Helper (same accessibility service):** Debloat → Review → **Auto-disable all** presses Disable and confirms for each app. Activity can **force-stop** an app or **stop background apps** (only apps you installed, never the one playing music). Screen-share prompts are accepted automatically.
 - **Network firewall:** a VPN-based allow-list (Tools → Network firewall). Allowed apps bypass it entirely, so they run at full speed. Every other app is cut off. It comes back on by itself after a reboot.
+- **Updates:** once a day the app checks this repo's GitHub releases. A new version shows a quiet
+  notification in the notification shade only, with no sound and no pop-up over your map.
+  - **Update** downloads the APK and opens the installer. The helper presses Update for you on Android 9 to 13.
+  - Tools → Updates has **Check now** and an on/off switch for the daily check.
 - **Activity:** live RAM, CPU clocks and temperature, plus each app's screen time and data used today (needs Usage access). Android 8 and newer don't let apps see other apps' CPU or RAM.
 
 Plain Java and framework Views only: no AndroidX, Compose or native code. The APK is about 130 KB.

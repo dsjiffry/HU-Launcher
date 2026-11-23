@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hu.launcher"
-    android:versionCode="17"
-    android:versionName="2.1.3">
+    android:versionCode="18"
+    android:versionName="2.2">
 
     <!-- The head unit reports "Android 13" but its framework is really Pie (API 28), so the code
          only uses API <= 28 and never branches on Build.VERSION.SDK_INT (it may be spoofed). -->
@@ -121,6 +121,8 @@
         </receiver>
         <!-- Install results from the PackageInstaller session (PC link installs). -->
         <receiver android:name=".Installer$Result" android:exported="false" />
+        <!-- "Update" button on the update notification. -->
+        <receiver android:name=".Updater$Act" android:exported="false" />
 
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
