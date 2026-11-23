@@ -1,6 +1,21 @@
-# HU Launcher
+# HU Launcher: fast launcher and debloater for cheap Android car head units
 
-A light home screen and debloater for cheap, unbranded Android car head units.
+A light home screen, bloatware remover and privacy firewall for cheap, unbranded Android car
+head units: the no-name "Android car stereo", "Android car radio" or double-DIN (2-DIN)
+multimedia players sold online. They usually have a MediaTek (MTK) or Rockchip chip and a
+9 or 10 inch screen. No root needed.
+
+| Home | All apps (5 × 2 pages) |
+|---|---|
+| ![Home screen with large clock and music card](docs/screenshots/home.png) | ![App drawer with large icons](docs/screenshots/drawer.png) |
+| **Debloat** | **Network firewall** |
+| ![Debloat screen sorting apps into Bloat, Maybe and Keep](docs/screenshots/debloat.png) | ![Per-app firewall allow-list](docs/screenshots/network.png) |
+| **Activity** | **Setup** |
+| ![RAM, CPU and per-app data use](docs/screenshots/monitor.png) | ![All permissions on one screen](docs/screenshots/setup.png) |
+| **Tools** | **Files** |
+| ![Tools menu](docs/screenshots/tools.png) | ![Built-in file manager](docs/screenshots/files.png) |
+
+<sub>Screenshots from a 1024×600 emulator.</sub>
 
 ## Why this exists
 Cheap no-name Android head units usually have weak hardware: an old MediaTek or Rockchip chip,
@@ -15,6 +30,14 @@ to deal with them:
   cuts the rest off the internet, with no root and no cloud service.
 
 All of it runs on the unit, or on your own PC on your own Wi-Fi. Nothing is sent anywhere else.
+
+**Common reasons people end up here:**
+- The head unit is slow or laggy.
+- The stock launcher is ugly.
+- They want to remove bloatware from an Android car stereo without root.
+- An app keeps killing Spotify or Google Maps in the background (MediaTek DuraSpeed and similar).
+- They want to stop a Chinese head unit sending data home: Adups FOTA, log uploaders, Baidu location.
+- They want a lightweight launcher with big buttons for driving.
 
 It works on Android 7 to 9 head units, and is also fine on newer ones. It has been tested on an
 MT8163 unit (2 GB RAM, 1024×600) that claims Android 13 but runs Android 9.
