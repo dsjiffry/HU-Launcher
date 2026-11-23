@@ -20,3 +20,6 @@ pc/*.log
 *.png
 *.webp
 *.log
+
+# ...except the README screenshots (taken on an emulator, no personal data)
+!docs/screenshots/*.png
