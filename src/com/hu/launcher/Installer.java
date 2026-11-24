@@ -51,6 +51,8 @@ final class Installer {
                 }
                 s.fsync(out);
             }
+            String label = peekLabel(c, s, length);
+            if (label != null) LABELS.put(id, label);
             last = "installing " + name + " - waiting for the confirm screen";
             PcLink.expectUpdate(c); // if this is HU Launcher itself, the link comes back afterwards
             PendingIntent done = PendingIntent.getBroadcast(c, id,
@@ -62,6 +64,35 @@ final class Installer {
             s.close();
         }
         return id;
+    }
+
+    /** Labels read from the APKs themselves, per session (Android 9 doesn't report them). */
+    private static final java.util.Map<Integer, String> LABELS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Reads the app name out of the APK in the session (before commit), so the helper knows
+     * exactly which app it is confirming. Small APKs only: copied to cache for a moment.
+     */
+    private static String peekLabel(Context c, PackageInstaller.Session s, long length) {
+        if (length <= 0 || length > 60L * 1024 * 1024) return null;
+        File tmp = new File(c.getCacheDir(), "peek.apk");
+        try {
+            try (InputStream in = s.openRead("base.apk"); OutputStream out = new java.io.FileOutputStream(tmp)) {
+                byte[] buf = new byte[64 * 1024];
+                for (int r; (r = in.read(buf)) > 0; ) out.write(buf, 0, r);
+            }
+            android.content.pm.PackageManager pm = c.getPackageManager();
+            android.content.pm.PackageInfo pk = pm.getPackageArchiveInfo(tmp.getPath(), 0);
+            if (pk == null || pk.applicationInfo == null) return null;
+            pk.applicationInfo.sourceDir = tmp.getPath();
+            pk.applicationInfo.publicSourceDir = tmp.getPath();
+            CharSequence l = pk.applicationInfo.loadLabel(pm);
+            return l == null ? null : l.toString();
+        } catch (IOException | RuntimeException e) {
+            return null;
+        } finally {
+            tmp.delete();
+        }
     }
 
     static int installFile(Context c, File f) throws IOException {
@@ -104,6 +135,7 @@ final class Installer {
                 try { c.startActivity(confirm); }
                 catch (RuntimeException e) { last = name + ": " + e.getMessage(); return; }
                 String label = appLabel(c, i);
+                if (label == null) label = LABELS.get(i.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1));
                 boolean auto = AutoClicker.available() && label != null;
                 last = name + ": confirm screen shown" + (auto ? " - pressing Install" : " - tap Install on the unit");
                 AutoClicker.confirmInstall(label);

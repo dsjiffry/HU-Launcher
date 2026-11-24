@@ -327,6 +327,13 @@ final class LanServer {
                     .put("helper", AutoClicker.available()).put("message", "sent to the installer").toString());
             return;
         }
+        // Read-only copy of a *preinstalled* app's APK (/system, /vendor...), so the PC can see what
+        // a vendor app does before you disable it. Never user-installed apps or any data files.
+        if (path.equals("/apk") && method.equals("GET")) {
+            deadline.extend(120000);
+            sendSystemApk(s, query.get("pkg"));
+            return;
+        }
         if (length < 0 || length > MAX_BODY) { send(s, 413, "{\"error\":\"too large\"}"); return; }
         byte[] body = new byte[(int) length];
         for (int off = 0; off < length; ) {
@@ -420,6 +427,15 @@ final class LanServer {
             case "/stats":
                 send(s, 200, Monitor.report(ctx).toString());
                 return;
+            case "/spotify": // GET status   POST {"keep":true|false}
+                if (post && req.has("keep")) {
+                    final boolean keep = req.getBoolean("keep");
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> SpotifyKeeper.setEnabled(ctx, keep));
+                    Thread.sleep(1500);
+                }
+                send(s, 200, new JSONObject().put("keep", SpotifyKeeper.enabled(ctx)).put("state", SpotifyKeeper.state())
+                        .put("service", String.valueOf(SpotifyKeeper.mediaService(ctx))).toString());
+                return;
             case "/keep": // GET list   POST {"add":[..],"remove":[..]}
                 JSONObject refused = post ? Keeper.applyRemote(ctx, req) : new JSONObject();
                 send(s, 200, Keeper.report(ctx).put("refused", refused).toString());
@@ -501,6 +517,37 @@ final class LanServer {
 
     private static void send(Socket s, int code, String json) throws IOException {
         sendRaw(s, code, "application/json; charset=utf-8", json.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void sendSystemApk(Socket s, String pkg) throws IOException {
+        java.io.File f;
+        try {
+            if (pkg == null || !pkg.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) { send(s, 400, "{\"error\":\"bad package name\"}"); return; }
+            android.content.pm.ApplicationInfo ai = ctx.getPackageManager().getApplicationInfo(pkg, 0x2000 /* MATCH_DISABLED_COMPONENTS|UNINSTALLED */);
+            f = new java.io.File(ai.sourceDir).getCanonicalFile();
+            boolean preinstalled = (ai.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                    && (ai.flags & android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
+            String p = f.getPath();
+            if (!preinstalled || !(p.startsWith("/system/") || p.startsWith("/vendor/") || p.startsWith("/product/")
+                    || p.startsWith("/odm/") || p.startsWith("/oem/")) || !p.endsWith(".apk")) {
+                send(s, 403, "{\"error\":\"only preinstalled system apps\"}");
+                return;
+            }
+        } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+            send(s, 404, "{\"error\":\"not installed\"}");
+            return;
+        }
+        long len = f.length();
+        if (len <= 0 || len > 200L * 1024 * 1024) { send(s, 413, "{\"error\":\"unreadable or too large\"}"); return; }
+        OutputStream out = s.getOutputStream();
+        out.write(("HTTP/1.1 200 OK\r\nContent-Type: application/vnd.android.package-archive\r\nContent-Length: " + len
+                + "\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n")
+                .getBytes(StandardCharsets.US_ASCII));
+        try (java.io.InputStream in = new java.io.FileInputStream(f)) {
+            byte[] buf = new byte[64 * 1024];
+            for (int r; (r = in.read(buf)) > 0; ) out.write(buf, 0, r);
+        }
+        out.flush();
     }
 
     private static void sendBytes(Socket s, String type, byte[] body) throws IOException {

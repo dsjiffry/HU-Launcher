@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hu.launcher"
-    android:versionCode="20"
-    android:versionName="2.4">
+    android:versionCode="21"
+    android:versionName="2.5">
 
     <!-- The head unit reports "Android 13" but its framework is really Pie (API 28), so the code
          only uses API <= 28 and never branches on Build.VERSION.SDK_INT (it may be spoofed). -->

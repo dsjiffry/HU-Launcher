@@ -83,6 +83,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         f.addDataScheme("package");
         registerReceiver(packages, f);
         Apps.BG.execute(() -> Firewall.ensure(this)); // home starts at boot: bring the firewall up
+        SpotifyKeeper.ensure(this);
         if (!PcLink.running() && PcLink.resumeAfterInstall(this)) PcLink.start(this); // updated over the link
 
         if (MediaListener.hasAccess(this)) {
@@ -569,7 +570,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
 
     private void toolsMenu() {
         dialog = BigMenu.show(this, "Tools", null, new String[]{"Check for updates", "Activity", "Firewall",
-                "Debloat", PcLink.running() ? "PC link (on)" : "PC link", "Night screen", "Setup", "Cancel"}, idx -> {
+                "Debloat", PcLink.running() ? "PC link (on)" : "PC link", "Night screen", "Spotify ready", "Setup", "Cancel"}, idx -> {
             if (idx == 0) checkUpdates();
             else if (idx == 1) startActivity(new Intent(this, Monitor.class));
             else if (idx == 2) startActivity(new Intent(this, Network.class));
@@ -579,8 +580,24 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
                 handler.postDelayed(this::pcLinkDialog, 400);
             }
             else if (idx == 5) startActivity(new Intent(this, NightSettings.class));
-            else if (idx == 6) startActivity(new Intent(this, Setup.class));
+            else if (idx == 6) spotifyMenu();
+            else if (idx == 7) startActivity(new Intent(this, Setup.class));
         });
+    }
+
+    private void spotifyMenu() {
+        final boolean on = SpotifyKeeper.enabled(this);
+        String msg = "Keeps Spotify loaded in the background so it starts playing instantly and isn't closed when "
+                + "memory runs low. If it gets closed anyway, Android restarts it. No extra CPU use; Spotify keeps "
+                + "its usual memory (about 150-250 MB) all the time."
+                + (SpotifyKeeper.mediaService(this) == null ? "\n\nSpotify isn't installed (or is disabled)."
+                        : on ? "\n\nNow: " + SpotifyKeeper.state() : "");
+        dialog = BigMenu.show(this, "Keep Spotify ready", msg,
+                new String[]{on ? "Turn off" : "Turn on", "Close"}, idx -> {
+                    if (idx != 0) return;
+                    SpotifyKeeper.setEnabled(this, !on);
+                    Toast.makeText(this, on ? "Spotify is no longer kept ready" : "Keeping Spotify ready", Toast.LENGTH_SHORT).show();
+                });
     }
 
     /** Manual check: asks GitHub right away, then offers Update now / automatic checks. */
