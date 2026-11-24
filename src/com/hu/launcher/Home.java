@@ -49,8 +49,16 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
     private SharedPreferences prefs;
     private boolean onboardShown;
     private int accent = Ui.SPOTIFY;
+    private NightScreen night;
+    private View page, scrim;
+    private boolean resumed;
+    private long lastTouchAt;
+    private static final long DRAWER_IDLE_MS = 20_000;
+    /** Set by the Night screen settings "Try it now" button: show it as soon as home is back. */
+    static boolean nightPreview;
 
     private final Runnable reloadApps = () -> apps.reload();
+    private final Runnable nightTimer = this::nightTick;
     private final Runnable onboardStep = this::onboard;
     private final BroadcastReceiver packages = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
@@ -98,15 +106,29 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
             handler.removeCallbacks(onboardStep);
             handler.postDelayed(onboardStep, 600);
         }
+        resumed = true;
+        if (nightPreview) {
+            nightPreview = false;
+            handler.postDelayed(this::showNight, 300);
+        } else {
+            scheduleNight();
+        }
     }
 
     @Override public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
         Keeper.touched();
+        lastTouchAt = android.os.SystemClock.uptimeMillis();
+        int a = ev.getActionMasked();
+        if (a == android.view.MotionEvent.ACTION_DOWN || a == android.view.MotionEvent.ACTION_UP) scheduleNight();
+        if (night.showing()) return super.dispatchTouchEvent(ev); // its buttons work, a tap elsewhere wakes
         if (swipeUp(ev)) return true;
         return super.dispatchTouchEvent(ev);
     }
 
     @Override protected void onPause() {
+        resumed = false;
+        handler.removeCallbacks(nightTimer);
+        hideNight();
         Keeper.homePaused();
         MediaListener.listener = null;
         music.stop();
@@ -130,7 +152,76 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         // A launcher never finishes on back.
     }
 
-    @Override public void onMediaChanged() { music.refresh(); }
+    @Override public void onMediaChanged() {
+        if (night.showing()) night.refresh();
+        else music.refresh();
+    }
+
+    // ---- Night screen ------------------------------------------------------------------------
+
+    /** Re-arms the one timer: 5 s of no touches inside the night window, else wake at its start. */
+    private void scheduleNight() {
+        handler.removeCallbacks(nightTimer);
+        if (!resumed || !NightScreen.enabled(this)) return;
+        long delay;
+        if (night.showing()) delay = NightScreen.msUntil(NightScreen.end(this));
+        else if (NightScreen.inWindow(this)) delay = NightScreen.IDLE_MS;
+        else delay = NightScreen.msUntil(NightScreen.start(this));
+        handler.postDelayed(nightTimer, Math.min(delay, 30 * 60_000L)); // re-check at least every 30 min (clock changes)
+    }
+
+    private void nightTick() {
+        if (!resumed || !NightScreen.enabled(this)) { hideNight(); return; }
+        boolean in = NightScreen.inWindow(this);
+        if (night.showing()) {
+            if (!in) hideNight();
+        } else if (in) {
+            if (dialog != null && dialog.isShowing()) { handler.postDelayed(nightTimer, NightScreen.IDLE_MS); return; }
+            // Browsing the drawer: give it longer before going dark.
+            long idle = android.os.SystemClock.uptimeMillis() - lastTouchAt;
+            if (drawer.getVisibility() == View.VISIBLE && idle < DRAWER_IDLE_MS) {
+                handler.postDelayed(nightTimer, DRAWER_IDLE_MS - idle);
+                return;
+            }
+            showNight();
+            return;
+        }
+        scheduleNight();
+    }
+
+    private void showNight() {
+        if (night.showing() || !resumed) return;
+        if (dialog != null && dialog.isShowing()) dialog.dismiss();
+        hideDrawer(false);
+        music.stop(); // no per-second progress redraws under the black
+        night.applyDim();
+        night.refresh();
+        night.root.setAlpha(0f);
+        night.root.setVisibility(View.VISIBLE);
+        // Hide the status bar and dim the nav bar icons (hiding the nav bar would eat the wake tap).
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_LOW_PROFILE);
+        night.root.animate().alpha(1f).setDuration(700).withEndAction(() -> {
+            if (!night.showing()) return;
+            page.setVisibility(View.INVISIBLE);
+            backdrop.setVisibility(View.INVISIBLE);
+            scrim.setVisibility(View.INVISIBLE);
+        }).start();
+        Keeper.setQuiet(true); // no App-info force stops flashing up in the dark
+        scheduleNight();
+    }
+
+    private void hideNight() {
+        if (!night.showing()) return;
+        night.root.animate().cancel();
+        night.root.setVisibility(View.GONE);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        page.setVisibility(View.VISIBLE);
+        backdrop.setVisibility(View.VISIBLE);
+        scrim.setVisibility(View.VISIBLE);
+        Keeper.setQuiet(false);
+        if (resumed) music.start();
+        scheduleNight();
+    }
 
     @Override public void onArtChanged(Bitmap blurred, int accent) {
         this.accent = accent;
@@ -159,12 +250,13 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         backdrop.setScaleType(ImageView.ScaleType.CENTER_CROP);
         backdrop.setAlpha(0f);
         root.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
-        View scrim = new View(this);
+        scrim = new View(this);
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{0x99000000, 0xD9000000}));
         root.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
 
         LinearLayout page = new LinearLayout(this);
+        this.page = page;
         page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(Ui.dp(24), Ui.dp(20), Ui.dp(24), Ui.dp(20));
 
@@ -197,6 +289,8 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
 
         root.addView(page, new FrameLayout.LayoutParams(-1, -1));
         root.addView(buildDrawer(), new FrameLayout.LayoutParams(-1, -1));
+        night = new NightScreen(this, this::hideNight);
+        root.addView(night.root, new FrameLayout.LayoutParams(-1, -1));
         return root;
     }
 
@@ -434,39 +528,50 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
     }
 
     private void toolsMenu() {
-        dialog = BigMenu.show(this, "Tools", null, new String[]{"Activity & resources", "Network firewall",
-                "Debloat", PcLink.running() ? "PC link (on)" : "PC link & remote", "Permissions & setup", "Updates", "Cancel"}, idx -> {
-            if (idx == 0) startActivity(new Intent(this, Monitor.class));
-            else if (idx == 1) startActivity(new Intent(this, Network.class));
-            else if (idx == 2) startActivity(new Intent(this, Debloat.class));
-            else if (idx == 3) {
+        dialog = BigMenu.show(this, "Tools", null, new String[]{"Check for updates", "Activity", "Firewall",
+                "Debloat", PcLink.running() ? "PC link (on)" : "PC link", "Night screen", "Setup", "Cancel"}, idx -> {
+            if (idx == 0) checkUpdates();
+            else if (idx == 1) startActivity(new Intent(this, Monitor.class));
+            else if (idx == 2) startActivity(new Intent(this, Network.class));
+            else if (idx == 3) startActivity(new Intent(this, Debloat.class));
+            else if (idx == 4) {
                 if (!PcLink.running()) PcLink.start(this);
                 handler.postDelayed(this::pcLinkDialog, 400);
             }
-            else if (idx == 4) startActivity(new Intent(this, Setup.class));
-            else if (idx == 5) updatesMenu();
+            else if (idx == 5) startActivity(new Intent(this, NightSettings.class));
+            else if (idx == 6) startActivity(new Intent(this, Setup.class));
         });
     }
 
-    private void updatesMenu() {
-        String version;
-        try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
-        catch (PackageManager.NameNotFoundException e) { version = "?"; }
-        final boolean auto = Updater.autoEnabled(this);
-        dialog = BigMenu.show(this, "Updates", "You have version " + version + ". Updates come from this app's GitHub releases"
-                        + " and show up as a quiet notification. The check sends no data about you or this unit.",
-                new String[]{"Check now", auto ? "Automatic checks: On" : "Automatic checks: Off", "Close"}, idx -> {
-                    if (idx == 0) {
-                        Toast.makeText(this, "Checking GitHub…", Toast.LENGTH_SHORT).show();
-                        Updater.checkNow(this, (ver, err) -> Toast.makeText(this,
-                                err != null ? "Couldn't check: " + err
-                                        : ver != null ? "Version " + ver + " is available - see the notification"
-                                        : "You have the latest version", Toast.LENGTH_LONG).show());
-                    } else if (idx == 1) {
-                        Updater.setAuto(this, !auto);
-                        Toast.makeText(this, auto ? "Automatic update checks off" : "Will check once a day", Toast.LENGTH_SHORT).show();
-                    }
-                });
+    /** Manual check: asks GitHub right away, then offers Update now / automatic checks. */
+    private void checkUpdates() {
+        dialog = BigMenu.show(this, "Checking for updates…", "Asking GitHub for the latest release.",
+                new String[]{"Close"}, null);
+        Updater.checkNow(this, (ver, err) -> {
+            if (dialog != null) dialog.dismiss();
+            if (isFinishing() || !resumed) return;
+            String version;
+            try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
+            catch (PackageManager.NameNotFoundException e) { version = "?"; }
+            final boolean auto = Updater.autoEnabled(this);
+            String autoLabel = auto ? "Daily checks: On" : "Daily checks: Off";
+            String msg = (err != null ? "Couldn't check: " + err + "."
+                    : ver != null ? "Version " + ver + " is available. You have " + version + "."
+                    : "You have the latest version (" + version + ").")
+                    + "\n\nUpdates come from this app's GitHub releases. The check sends no data about you or this unit.";
+            String[] items = ver != null ? new String[]{"Update now", autoLabel, "Later"}
+                    : new String[]{"Close", autoLabel};
+            dialog = BigMenu.show(this, ver != null ? "Update available" : "Updates", msg, items, idx -> {
+                String pick = items[idx];
+                if (pick.equals("Update now")) {
+                    Toast.makeText(this, "Downloading " + ver + "…", Toast.LENGTH_SHORT).show();
+                    Updater.install(getApplicationContext());
+                } else if (pick.equals(autoLabel)) {
+                    Updater.setAuto(this, !auto);
+                    Toast.makeText(this, auto ? "Daily update checks off" : "Will check once a day", Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
     }
 
     private void pcLinkDialog() {

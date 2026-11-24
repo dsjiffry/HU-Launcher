@@ -31,7 +31,7 @@ to deal with them:
 
 All of it runs on the unit, or on your own PC on your own Wi-Fi. The only internet request the app
 makes is a once-a-day update check that reads this repo's latest release from GitHub. It sends no
-data about you or the unit, and you can turn it off in Tools → Updates.
+data about you or the unit, and you can turn it off in Tools → Check for updates.
 
 **Common reasons people end up here:**
 - The head unit is slow or laggy.
@@ -58,14 +58,19 @@ MT8163 unit (2 GB RAM, 1024×600) that claims Android 13 but runs Android 9.
   on your PC connect to the unit over your Wi-Fi (PIN-protected, `_hulauncher._tcp`, port 8765).
   It reads the full app list with permissions, services and file paths, works out what each app
   does, and sends back a verdict for each one: bloat, maybe or keep, with a reason.
-- **Setup screen:** on first start, one screen lists every permission (home app, notification access, accessibility, usage access, storage, install APKs). Each card opens that exact setting, where Android allows it, and shows a tick when it's on. You can open it again from Tools → Permissions & setup.
+- **Setup screen:** on first start, one screen lists every permission (home app, notification access, accessibility, usage access, storage, install APKs). Each card opens that exact setting, where Android allows it, and shows a tick when it's on. You can open it again from Tools → Setup.
 - **Remote control:** turn on Tools → PC link, then open `http://<unit-ip>:8765` in a PC browser. You see the screen live and can click, swipe, scroll, type and press Back/Home. Screen sharing asks once each time it starts (tick "Don't show again"). Touch needs the "HU Launcher remote" accessibility service, which you turn on once.
 - **Helper (same accessibility service):** Debloat → Review → **Auto-disable all** presses Disable and confirms for each app. Activity can **force-stop** an app or **stop background apps** (only apps you installed, never the one playing music). Screen-share prompts are accepted automatically.
-- **Network firewall:** a VPN-based allow-list (Tools → Network firewall). Allowed apps bypass it entirely, so they run at full speed. Every other app is cut off. It comes back on by itself after a reboot.
+- **Network firewall:** a VPN-based allow-list (Tools → Firewall). Allowed apps bypass it entirely, so they run at full speed. Every other app is cut off. It comes back on by itself after a reboot.
 - **Updates:** once a day the app checks this repo's GitHub releases. A new version shows a quiet
   notification in the notification shade only, with no sound and no pop-up over your map.
   - **Update** downloads the APK and opens the installer. The helper presses Update for you on Android 9 to 13.
-  - Tools → Updates has **Check now** and an on/off switch for the daily check.
+  - Tools → **Check for updates** asks GitHub right away and offers **Update now**. It also has the on/off switch for the daily check.
+- **Night screen (optional):** many cheap head units are still too bright at minimum backlight.
+  Turn on Tools → Night screen and, between two times you choose (6 PM to 4 AM by default), the home
+  screen turns almost black after 5 s without a touch. Only a dim clock and a small music widget
+  (song, art, play/skip) stay, and the status bar hides. A slider sets how dim they are (0–90%).
+  Tap anywhere to get the normal home screen back. It only replaces the home screen, not other apps.
 - **Activity:** live RAM, CPU clocks and temperature, plus each app's screen time and data used today (needs Usage access). Android 8 and newer don't let apps see other apps' CPU or RAM.
 
 Plain Java and framework Views only: no AndroidX, Compose or native code. The APK is about 130 KB.

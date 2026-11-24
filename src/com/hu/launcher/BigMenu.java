@@ -33,7 +33,9 @@ final class BigMenu {
         }
         // Long menus go two per row (last item, usually Cancel, full width) so they fit a 600px
         // screen without scrolling.
-        boolean twoCol = items.length > 4;
+        // Very long menus (short labels) go three per row.
+        int cols = items.length > 7 ? 3 : items.length > 4 ? 2 : 1;
+        boolean twoCol = cols > 1;
         LinearLayout row = null;
         for (int i = 0; i < items.length; i++) {
             final int idx = i;
@@ -45,7 +47,7 @@ final class BigMenu {
             b.setOnClickListener(v -> { d.dismiss(); if (pick != null) pick.onPick(idx); });
             int h = Ui.dp(items.length > 3 ? 72 : 80);
             boolean paired = twoCol && i < items.length - 1;
-            if (paired && (i % 2 == 0)) {
+            if (paired && (i % cols == 0)) {
                 row = new LinearLayout(c);
                 LinearLayout.LayoutParams rl = Ui.lp(-1, h);
                 rl.topMargin = Ui.dp(i == 0 ? 20 : 10);
@@ -53,7 +55,7 @@ final class BigMenu {
             }
             if (paired) {
                 LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -1, 1);
-                if (i % 2 == 1) cl.leftMargin = Ui.dp(10);
+                if (i % cols != 0) cl.leftMargin = Ui.dp(10);
                 row.addView(b, cl);
             } else {
                 LinearLayout.LayoutParams bl = Ui.lp(-1, h);

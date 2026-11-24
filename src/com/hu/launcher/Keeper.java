@@ -40,6 +40,10 @@ final class Keeper {
     private static long lastCheck = -CHECK_EVERY, lastTouch;
     private static volatile boolean homeInFront;
     private static String pendingDeep;
+    /** True while the night screen is up: no bright App-info pages pop up then (silent kills still run). */
+    private static volatile boolean quiet;
+
+    static void setQuiet(boolean q) { quiet = q; }
     private static final Runnable DEEP = Keeper::deepStopNow;
     private static Context app;
 
@@ -163,7 +167,7 @@ final class Keeper {
         final String pkg = pendingDeep;
         final Context c = app;
         if (pkg == null || c == null) return;
-        if (!homeInFront || AutoClicker.busy() || SystemClock.uptimeMillis() - lastTouch < IDLE_NEEDED) return;
+        if (!homeInFront || quiet || AutoClicker.busy() || SystemClock.uptimeMillis() - lastTouch < IDLE_NEEDED) return;
         pendingDeep = null;
         AutoClicker.run(c, pkg, AutoClicker.FORCE_STOP, (ok, msg) -> Apps.BG.execute(() -> {
             St s = St.load(c, pkg);

@@ -26,7 +26,7 @@ import java.net.URL;
 /**
  * Update check against this project's GitHub releases.
  *  - At most once a day, in the background, when the home screen comes up (can be turned off in
- *    Tools → Updates). The only request is GET api.github.com/.../releases/latest: no IDs, no data.
+ *    Tools → Check for updates). The only request is GET api.github.com/.../releases/latest: no IDs, no data.
  *  - A newer release shows a silent, low-importance notification - shade only, no sound/pop-up.
  *  - "Update" downloads the release's .apk over HTTPS, checks it is HU Launcher, and hands it to the
  *    package installer (Android itself refuses an APK signed with a different key).

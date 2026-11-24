@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hu.launcher"
-    android:versionCode="18"
-    android:versionName="2.2">
+    android:versionCode="19"
+    android:versionName="2.3">
 
     <!-- The head unit reports "Android 13" but its framework is really Pie (API 28), so the code
          only uses API <= 28 and never branches on Build.VERSION.SDK_INT (it may be spoofed). -->
@@ -82,6 +82,10 @@
         <activity android:name=".Setup"
             android:exported="false"
             android:label="Setup"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode" />
+        <activity android:name=".NightSettings"
+            android:exported="false"
+            android:label="Night screen"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode" />
         <activity android:name=".Monitor"
             android:exported="false"
