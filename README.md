@@ -43,6 +43,8 @@ data about you or the unit, and you can turn it off in Tools → Check for updat
 
 It works on Android 7 to 9 head units, and is also fine on newer ones. It has been tested on an
 MT8163 unit (2 GB RAM, 1024×600) that claims Android 13 but runs Android 9.
+The home screen adjusts to the screen: it has been checked at 800×480, 1024×600, 1280×720, 1920×720
+and portrait 768×1024.
 
 ## Features
 - **Home:** large clock and date, a large now-playing card (album art, blurred art backdrop,
@@ -61,7 +63,7 @@ MT8163 unit (2 GB RAM, 1024×600) that claims Android 13 but runs Android 9.
 - **Setup screen:** on first start, one screen lists every permission (home app, notification access, accessibility, usage access, storage, install APKs). Each card opens that exact setting, where Android allows it, and shows a tick when it's on. You can open it again from Tools → Setup.
 - **Remote control:** turn on Tools → PC link, then open `http://<unit-ip>:8765` in a PC browser. You see the screen live and can click, swipe, scroll, type and press Back/Home. Screen sharing asks once each time it starts (tick "Don't show again"). Touch needs the "HU Launcher remote" accessibility service, which you turn on once.
 - **Helper (same accessibility service):** Debloat → Review → **Auto-disable all** presses Disable and confirms for each app. Activity can **force-stop** an app or **stop background apps** (only apps you installed, never the one playing music). Screen-share prompts are accepted automatically.
-- **Network firewall:** a VPN-based allow-list (Tools → Firewall). Allowed apps bypass it entirely, so they run at full speed. Every other app is cut off. It comes back on by itself after a reboot.
+- **Network firewall:** a VPN-based allow-list (Tools → Firewall). At first only the system parts that other things quietly depend on are allowed: network and hotspot sign-in checks, clock sync, mobile data, the download manager, Google Play services and Play Store, offline voices and GPS assistance. Everything else, including Spotify, Maps and any app you install later, is cut off until you tap it to allow it. Allowed apps bypass the firewall entirely, so they run at full speed. Blocking a system part asks first. It comes back on by itself after a reboot.
 - **Updates:** once a day the app checks this repo's GitHub releases. A new version shows a quiet
   notification in the notification shade only, with no sound and no pop-up over your map.
   - **Update** downloads the APK and opens the installer. The helper presses Update for you on Android 9 to 13.

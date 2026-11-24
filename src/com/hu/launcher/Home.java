@@ -255,18 +255,45 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
                 new int[]{0x99000000, 0xD9000000}));
         root.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
 
+        // Sizes follow the screen: head units range from 800×480 to 1920×720 and portrait 10".
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        float wDp = dm.widthPixels / dm.density, hDp = dm.heightPixels / dm.density;
+        boolean portrait = hDp > wDp * 1.1f;
+        boolean shortScreen = hDp < 480;
+        int padV = shortScreen ? 12 : 20, dockDp = shortScreen ? 84 : 100, gap = shortScreen ? 12 : 16;
+
         LinearLayout page = new LinearLayout(this);
         this.page = page;
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(Ui.dp(24), Ui.dp(20), Ui.dp(24), Ui.dp(20));
+        page.setPadding(Ui.dp(24), Ui.dp(padV), Ui.dp(24), Ui.dp(padV));
 
+        // Space the music card gets (status bar ~24dp), used to scale its buttons and art.
+        float topH = hDp - 24 - 2 * padV - dockDp - gap;
+        float cardW, cardH;
         LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.addView(buildClock(), new LinearLayout.LayoutParams(0, -1, 0.44f));
-        music = new MusicCard(this, this);
-        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(0, -1, 0.56f);
-        ml.leftMargin = Ui.dp(24);
-        top.addView(music.root, ml);
+        if (portrait) {
+            top.setOrientation(LinearLayout.VERTICAL);
+            cardW = wDp - 48;
+            cardH = topH * 0.62f;
+        } else {
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            cardW = (wDp - 48 - 24) * 0.56f;
+            cardH = topH;
+        }
+        // 1.0 = full size; never below 0.72 so buttons stay large enough to hit while driving.
+        float k = Math.max(0.72f, Math.min(1f, Math.min((cardW - 44) / 384f, (cardH - 36) / 330f)));
+        music = new MusicCard(this, this, k);
+        if (portrait) {
+            top.addView(buildClock(), new LinearLayout.LayoutParams(-1, 0, 0.38f));
+            LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-1, 0, 0.62f);
+            ml.topMargin = Ui.dp(16);
+            top.addView(music.root, ml);
+        } else {
+            top.addView(buildClock(), new LinearLayout.LayoutParams(0, -1, 0.44f));
+            LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(0, -1, 0.56f);
+            ml.leftMargin = Ui.dp(24);
+            top.addView(music.root, ml);
+        }
         page.addView(top, new LinearLayout.LayoutParams(-1, 0, 1));
 
         LinearLayout dockRow = new LinearLayout(this);
@@ -283,8 +310,8 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(Ui.dp(220), -1);
         al.leftMargin = Ui.dp(16);
         dockRow.addView(all, al);
-        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-1, Ui.dp(100));
-        dl.topMargin = Ui.dp(16);
+        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-1, Ui.dp(dockDp));
+        dl.topMargin = Ui.dp(gap);
         page.addView(dockRow, dl);
 
         root.addView(page, new FrameLayout.LayoutParams(-1, -1));
@@ -303,7 +330,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.BOTTOM);
-        TextClock time = new FitClock(this, 150, android.text.format.DateFormat.is24HourFormat(this) ? 0 : 80);
+        TextClock time = new FitClock(this, 200, android.text.format.DateFormat.is24HourFormat(this) ? 0 : 80);
         time.setFormat12Hour("h:mm");
         time.setFormat24Hour("HH:mm");
         time.setTextColor(Ui.TEXT);
@@ -325,10 +352,9 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         row.addView(ampm, apl);
         col.addView(row);
 
-        TextClock date = new TextClock(this);
+        TextClock date = new FitClock(this, 28, 12, null, 0); // shrinks rather than cut "Wednesday, 24 September"
         date.setFormat12Hour("EEEE, d MMMM");
         date.setFormat24Hour("EEEE, d MMMM");
-        date.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 28);
         date.setSingleLine(true);
         date.setTextColor(Ui.TEXT_2);
         date.setTypeface(Ui.REGULAR);
@@ -339,28 +365,42 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         return col;
     }
 
-    /** Clock that shrinks its font so "00:00" (+ AM/PM room) always fits its column. */
+    /**
+     * TextClock that shrinks its font to fit: the width (for "00:00" plus AM/PM room, or for its
+     * own text when probe is null, e.g. the date) and a share of the height it is given.
+     */
     static final class FitClock extends TextClock {
-        private final float max, reserve;
+        private final float max, reserve, heightShare;
+        private final String probeText;
         private final Paint probe = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-        FitClock(Context c, float maxDp, float reserveDp) {
+        FitClock(Context c, float maxDp, float reserveDp) { this(c, maxDp, reserveDp, "00:00", 0.62f); }
+
+        FitClock(Context c, float maxDp, float reserveDp, String probeText, float heightShare) {
             super(c);
             max = Ui.dp(maxDp);
             reserve = Ui.dp(reserveDp);
+            this.probeText = probeText;
+            this.heightShare = heightShare;
             setTextSize(TypedValue.COMPLEX_UNIT_PX, max);
         }
 
         @Override protected void onMeasure(int w, int h) {
             int avail = MeasureSpec.getSize(w);
+            float size = max;
             if (MeasureSpec.getMode(w) != MeasureSpec.UNSPECIFIED && avail > 0) {
                 probe.setTypeface(getTypeface());
                 probe.setLetterSpacing(getLetterSpacing());
                 probe.setTextSize(max);
-                float need = probe.measureText("00:00") + reserve + getPaddingLeft() + getPaddingRight();
-                float size = need > avail ? max * avail / need : max;
-                if (Math.abs(size - getTextSize()) > 0.5f) setTextSize(TypedValue.COMPLEX_UNIT_PX, size);
+                String text = probeText != null ? probeText : String.valueOf(getText());
+                float need = probe.measureText(text) + reserve + getPaddingLeft() + getPaddingRight();
+                if (need > avail) size = max * avail / need;
             }
+            int hAvail = MeasureSpec.getSize(h);
+            if (heightShare > 0 && MeasureSpec.getMode(h) != MeasureSpec.UNSPECIFIED && hAvail > 0) {
+                size = Math.min(size, hAvail * heightShare / 1.18f); // ~1.18 = line height / font size
+            }
+            if (Math.abs(size - getTextSize()) > 0.5f) setTextSize(TypedValue.COMPLEX_UNIT_PX, size);
             super.onMeasure(w, h);
         }
     }

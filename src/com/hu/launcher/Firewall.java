@@ -31,13 +31,34 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class Firewall extends VpnService {
     static final String STOP = "stop";
-    private static final String[] ESSENTIAL = {"android", "com.hu.launcher", "com.android.providers.downloads",
-            "com.google.android.gms", "com.google.android.gsf", "com.android.vending", "com.google.android.webview",
-            "com.android.webview", "com.google.android.tts", "com.android.captiveportallogin",
-            "com.android.networkstack", "com.google.android.networkstack",
-            // Known-safe Google apps, always allowed by default:
-            "com.google.android.apps.maps", "com.android.chrome", "com.google.android.youtube"};
-    private static final int DEFAULTS_VERSION = 2;
+    /**
+     * Allowed by default: only the system parts that other things quietly depend on. Everything
+     * else - including apps you installed, Spotify and Maps - starts blocked until you allow it.
+     * Missing packages are simply skipped.
+     */
+    private static final String[] ESSENTIAL = {
+            // Android itself (uid 1000): clock sync (NTP), Wi-Fi "connected, no internet" check, Settings.
+            "android", "com.android.settings",
+            // Wi-Fi / mobile data plumbing: network checks and hotel/hotspot sign-in pages.
+            "com.android.networkstack", "com.google.android.networkstack", "com.android.captiveportallogin",
+            "com.google.android.captiveportallogin", "com.android.networkstack.tethering",
+            // SIM units: mobile data setup, MMS, carrier settings.
+            "com.android.phone", "com.android.mms.service", "com.android.carrierconfig",
+            // Download manager: other apps hand their downloads to it.
+            "com.android.providers.downloads",
+            // Google Play services + framework: push messages, location, sign-in, Maps/Spotify login,
+            // app updates (Play Store), and offline voices for navigation.
+            "com.google.android.gms", "com.google.android.gsf", "com.android.vending", "com.google.android.tts",
+            // Faster GPS fix: assistance-data download (MediaTek / Qualcomm).
+            "com.mediatek.location.lppe.main", "com.mediatek.location.mtknlp", "com.mediatek.nlpservice",
+            "com.qualcomm.location", "com.android.location.fused",
+            // This launcher: update check and PC link.
+            "com.hu.launcher"};
+    private static final Set<String> ESSENTIAL_SET = new HashSet<>(Arrays.asList(ESSENTIAL));
+    private static final int DEFAULTS_VERSION = 3;
+
+    /** True for the system parts allowed by default (shown as "needed by the system"). */
+    static boolean essential(String pkg) { return ESSENTIAL_SET.contains(pkg); }
 
     static final AtomicLong blockedPackets = new AtomicLong();
     private static volatile boolean running;
@@ -85,27 +106,22 @@ public class Firewall extends VpnService {
         return out;
     }
 
-    /** Default whitelist: things you installed or updated from Play, plus the plumbing they need. */
-    private static Set<String> defaults(Context c) {
-        Set<String> s = new HashSet<>(Arrays.asList(ESSENTIAL));
-        for (NetApp a : internetApps(c)) {
-            if (!a.system || a.updated) s.add(a.pkg);
-        }
-        s.add(MediaListener.SPOTIFY);
-        s.add("com.google.android.apps.maps");
-        return s;
-    }
+    /** Default allow-list: only the system essentials. You allow the apps you use. */
+    private static Set<String> defaults() { return new HashSet<>(ESSENTIAL_SET); }
 
     static Set<String> allowed(Context c) {
         SharedPreferences p = prefs(c);
         Set<String> s = p.getStringSet("allow", null);
-        if (s == null) {
-            s = defaults(c);
+        int v = p.getInt("defaultsV", 1);
+        if (s == null || (v < 3 && !enabled(c))) {
+            // New install, or an older version's list for a firewall that was never switched on:
+            // start from the minimal list.
+            s = defaults();
             p.edit().putStringSet("allow", s).putInt("defaultsV", DEFAULTS_VERSION).apply();
-        } else if (p.getInt("defaultsV", 1) < DEFAULTS_VERSION) {
-            // Upgrade an existing list with newly added safe defaults (your own blocks stay).
+        } else if (v < DEFAULTS_VERSION) {
+            // Firewall already in use: keep your choices, just add any new essentials.
             s = new HashSet<>(s);
-            s.addAll(Arrays.asList(ESSENTIAL));
+            s.addAll(ESSENTIAL_SET);
             p.edit().putStringSet("allow", s).putInt("defaultsV", DEFAULTS_VERSION).apply();
         }
         Set<String> out = new HashSet<>(s);

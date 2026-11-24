@@ -76,7 +76,8 @@ public class Network extends Activity {
         page.addView(header, Ui.lp(-1, Ui.dp(84)));
 
         TextView hint = Ui.text(this, 16, Ui.TEXT_2, Ui.REGULAR);
-        hint.setText("Allowed apps reach the internet normally (no slowdown). Everything else is cut off. Tap a row to switch it.");
+        hint.setText("Only system parts are allowed at first. Tap the apps you use (Spotify, Maps…) to allow them. "
+                + "Allowed apps run at full speed; everything else, including new apps, is cut off.");
         LinearLayout.LayoutParams hl = Ui.lp(-1, -2);
         hl.topMargin = Ui.dp(6);
         page.addView(hint, hl);
@@ -92,11 +93,14 @@ public class Network extends Activity {
         list.setAdapter(adapter);
         list.setOnItemClickListener((p, v, pos, id) -> {
             Group g = groups.get(pos);
-            g.allowed = !g.allowed;
-            List<String> pkgs = new ArrayList<>();
-            for (Firewall.NetApp a : g.apps) pkgs.add(a.pkg);
-            Firewall.setAllowed(this, pkgs, g.allowed);
-            adapter.notifyDataSetChanged();
+            if (g.allowed && essential(g)) {
+                BigMenu.show(this, "Block " + g.head().label + "?",
+                        "This is part of the system that other apps rely on (network checks, clock, sign-in, "
+                                + "downloads or GPS). Blocking it can break things in ways that are hard to trace.",
+                        new String[]{"Keep allowed", "Block anyway"}, idx -> { if (idx == 1) flipRow(g); });
+                return;
+            }
+            flipRow(g);
         });
         page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(page);
@@ -105,6 +109,20 @@ public class Network extends Activity {
 
     @Override protected void onResume() { super.onResume(); handler.post(tick); }
     @Override protected void onPause() { handler.removeCallbacks(tick); super.onPause(); }
+
+    private void flipRow(Group g) {
+        g.allowed = !g.allowed;
+        List<String> pkgs = new ArrayList<>();
+        for (Firewall.NetApp a : g.apps) pkgs.add(a.pkg);
+        Firewall.setAllowed(this, pkgs, g.allowed);
+        adapter.notifyDataSetChanged();
+        updateStatus();
+    }
+
+    private static boolean essential(Group g) {
+        for (Firewall.NetApp a : g.apps) if (Firewall.essential(a.pkg)) return true;
+        return false;
+    }
 
     private void load() {
         status.setText("Loading apps…");
@@ -218,7 +236,8 @@ public class Network extends Activity {
             LinearLayout col = (LinearLayout) row.getChildAt(1);
             Firewall.NetApp h = g.head();
             ((TextView) col.getChildAt(0)).setText(g.apps.size() > 1 ? h.label + " + " + (g.apps.size() - 1) + " more" : h.label);
-            ((TextView) col.getChildAt(1)).setText(h.pkg + (h.system ? (h.updated ? "  ·  system, updated" : "  ·  preinstalled") : "  ·  you installed"));
+            ((TextView) col.getChildAt(1)).setText(essential(g) ? "Needed by the system  ·  " + h.pkg
+                    : h.pkg + (h.system ? (h.updated ? "  ·  system, updated" : "  ·  preinstalled") : "  ·  you installed"));
             TextView chip = (TextView) row.getChildAt(2);
             chip.setText(g.allowed ? "ALLOWED" : "BLOCKED");
             chip.setBackground(Ui.round(g.allowed ? Ui.SPOTIFY : Ui.RED, 26));

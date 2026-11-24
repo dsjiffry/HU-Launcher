@@ -46,13 +46,16 @@ final class MusicCard {
         }
     };
 
-    MusicCard(Context c, Host host) {
+    MusicCard(Context c, Host host) { this(c, host, 1f); }
+
+    /** k scales art, buttons and gaps (1 = full size, 0.72 = smallest) to fit small or short screens. */
+    MusicCard(Context c, Host host, float k) {
         this.ctx = c;
         this.host = host;
         root = new LinearLayout(c);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackground(Ui.round(Ui.CARD, 28));
-        root.setPadding(Ui.dp(22), Ui.dp(20), Ui.dp(22), Ui.dp(16));
+        root.setPadding(Ui.dp(22), Ui.dp(20 * k), Ui.dp(22), Ui.dp(16 * k));
 
         // --- art + text ---
         LinearLayout top = new LinearLayout(c);
@@ -61,7 +64,7 @@ final class MusicCard {
         top.setBackground(Ui.button(0x00000000, 20));
         top.setOnClickListener(v -> onInfoTap());
 
-        FrameLayout artBox = new SquareBox(c, Ui.dp(150));
+        FrameLayout artBox = new SquareBox(c, Ui.dp(150 * k));
         artBox.setBackground(Ui.round(Ui.RAISED, 20));
         Ui.clipRound(artBox, 20);
         artFallback = Ui.icon(c, R.drawable.ic_music, Ui.TEXT_3);
@@ -78,11 +81,11 @@ final class MusicCard {
         info.setPadding(Ui.dp(22), 0, 0, 0);
         source = Ui.line(c, 15, Ui.SPOTIFY, Ui.MEDIUM);
         source.setLetterSpacing(0.12f);
-        title = Ui.text(c, 28, Ui.TEXT, Ui.MEDIUM);
+        title = Ui.text(c, Math.max(22, 28 * k), Ui.TEXT, Ui.MEDIUM);
         title.setMaxLines(2);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         title.setLineSpacing(Ui.dp(2), 1f);
-        artist = Ui.line(c, 21, Ui.TEXT_2, Ui.REGULAR);
+        artist = Ui.line(c, Math.max(18, 21 * k), Ui.TEXT_2, Ui.REGULAR);
         info.addView(source);
         LinearLayout.LayoutParams tl = Ui.lp(-1, -2);
         tl.topMargin = Ui.dp(10);
@@ -97,7 +100,7 @@ final class MusicCard {
         // --- progress ---
         bar = new Bar(c);
         LinearLayout.LayoutParams bl = Ui.lp(-1, Ui.dp(6));
-        bl.topMargin = Ui.dp(20);
+        bl.topMargin = Ui.dp(16 * k);
         root.addView(bar, bl);
         LinearLayout times = new LinearLayout(c);
         elapsed = Ui.line(c, 14, Ui.TEXT_3, Ui.REGULAR);
@@ -112,32 +115,36 @@ final class MusicCard {
         // --- controls: big, well spaced ---
         LinearLayout controls = new LinearLayout(c);
         controls.setGravity(Gravity.CENTER);
-        ImageView prev = Ui.roundIconButton(c, R.drawable.ic_prev, Ui.RAISED, Ui.TEXT, 44, 96);
-        playBtn = Ui.roundIconButton(c, R.drawable.ic_play, accent, 0xFF000000, 56, 112);
-        ImageView next = Ui.roundIconButton(c, R.drawable.ic_next, Ui.RAISED, Ui.TEXT, 44, 96);
+        ImageView prev = Ui.roundIconButton(c, R.drawable.ic_prev, Ui.RAISED, Ui.TEXT, s(44, k), s(96, k));
+        playBtn = Ui.roundIconButton(c, R.drawable.ic_play, accent, 0xFF000000, s(56, k), s(112, k));
+        ImageView next = Ui.roundIconButton(c, R.drawable.ic_next, Ui.RAISED, Ui.TEXT, s(44, k), s(96, k));
         prev.setOnClickListener(v -> { Player.prev(ctx); soon(); });
         playBtn.setOnClickListener(v -> { Player.playPause(ctx); soon(); });
         next.setOnClickListener(v -> { Player.next(ctx); soon(); });
         prev.setContentDescription("Previous");
         playBtn.setContentDescription("Play or pause");
         next.setContentDescription("Next");
-        controls.addView(prev, Ui.lp(Ui.dp(96), Ui.dp(96)));
-        LinearLayout.LayoutParams pl = Ui.lp(Ui.dp(112), Ui.dp(112));
-        pl.leftMargin = pl.rightMargin = Ui.dp(40);
+        controls.addView(prev, Ui.lp(Ui.dp(s(96, k)), Ui.dp(s(96, k))));
+        LinearLayout.LayoutParams pl = Ui.lp(Ui.dp(s(112, k)), Ui.dp(s(112, k)));
+        pl.leftMargin = pl.rightMargin = Ui.dp(40 * k);
         controls.addView(playBtn, pl);
-        controls.addView(next, Ui.lp(Ui.dp(96), Ui.dp(96)));
-        LinearLayout.LayoutParams cl = Ui.lp(-1, Ui.dp(112));
-        cl.topMargin = Ui.dp(10);
+        controls.addView(next, Ui.lp(Ui.dp(s(96, k)), Ui.dp(s(96, k))));
+        LinearLayout.LayoutParams cl = Ui.lp(-1, Ui.dp(s(112, k)));
+        cl.topMargin = Ui.dp(8 * k);
         root.addView(controls, cl);
     }
 
-    /** Square as tall as its row allows (capped), so the art adapts to the screen height. */
+    private static int s(int dp, float k) { return Math.round(dp * k); }
+
+    /** Square as tall as its row allows (capped), so the art adapts to the screen height. Too small to
+     *  read (under 64dp) it gets out of the way; the blurred backdrop still shows the cover. */
     static final class SquareBox extends FrameLayout {
         private final int cap;
         SquareBox(Context c, int cap) { super(c); this.cap = cap; }
         @Override protected void onMeasure(int w, int h) {
             int s = MeasureSpec.getSize(h);
             if (MeasureSpec.getMode(h) == MeasureSpec.UNSPECIFIED || s > cap) s = cap;
+            if (s < Ui.dp(64)) s = 0;
             int spec = MeasureSpec.makeMeasureSpec(s, MeasureSpec.EXACTLY);
             super.onMeasure(spec, spec);
         }

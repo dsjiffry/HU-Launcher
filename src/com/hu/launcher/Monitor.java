@@ -89,6 +89,33 @@ public class Monitor extends Activity {
                 == AppOpsManager.MODE_ALLOWED;
     }
 
+    private static int[] coresCache;
+
+    /** Core numbers from /sys/devices/system/cpu/present ("0-3", "0-3,6"), else 0..N-1. */
+    static int[] presentCores() {
+        if (coresCache != null) return coresCache;
+        List<Integer> out = new ArrayList<>();
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/sys/devices/system/cpu/present"))) {
+            String s = r.readLine();
+            if (s != null) {
+                for (String part : s.trim().split(",")) {
+                    if (part.isEmpty()) continue;
+                    String[] ab = part.split("-");
+                    int a = Integer.parseInt(ab[0].trim()), b = ab.length > 1 ? Integer.parseInt(ab[1].trim()) : a;
+                    for (int i = a; i <= b && out.size() < 64; i++) out.add(i);
+                }
+            }
+        } catch (java.io.IOException | RuntimeException ignored) { out.clear(); }
+        if (out.isEmpty()) {
+            int n = Math.max(1, Runtime.getRuntime().availableProcessors());
+            for (int i = 0; i < n; i++) out.add(i);
+        }
+        int[] arr = new int[out.size()];
+        for (int i = 0; i < arr.length; i++) arr[i] = out.get(i);
+        coresCache = arr;
+        return arr;
+    }
+
     static Device device(Context c) {
         Device d = new Device();
         ActivityManager am = (ActivityManager) c.getSystemService(ACTIVITY_SERVICE);
@@ -97,9 +124,11 @@ public class Monitor extends Activity {
         d.totalRam = mi.totalMem;
         d.availRam = mi.availMem;
         d.lowMemory = mi.lowMemory;
-        for (int i = 0; i < 16; i++) {
+        // MediaTek kernels make cpu0..cpu9 folders ("possible" cores) even on 4-core chips, so
+        // only count the cores the kernel lists as physically present.
+        for (int i : presentCores()) {
             File dir = new File("/sys/devices/system/cpu/cpu" + i);
-            if (!dir.exists()) break;
+            if (!dir.exists()) continue;
             int cur = readInt(new File(dir, "cpufreq/scaling_cur_freq"));
             d.cpuMhz.add(cur > 0 ? cur / 1000 : 0); // 0 = core asleep (hot-unplugged)
             d.cpuMaxMhz = Math.max(d.cpuMaxMhz, readInt(new File(dir, "cpufreq/cpuinfo_max_freq")) / 1000);
@@ -146,9 +175,10 @@ public class Monitor extends Activity {
                 statBlocked = true;
             }
             long wall = SystemClock.elapsedRealtimeNanos() / 1000;
-            long[] cur = new long[Math.max(1, cores)];
+            int[] ids = presentCores();
+            long[] cur = new long[Math.max(1, ids.length)];
             boolean any = false;
-            for (int c = 0; c < cur.length; c++) { cur[c] = coreIdleUs(c); any |= cur[c] >= 0; }
+            for (int c = 0; c < ids.length; c++) { cur[c] = coreIdleUs(ids[c]); any |= cur[c] >= 0; }
             if (!any) {
                 // Last resort: 1-minute load average per core (slow-moving, so shown as "~").
                 try (BufferedReader r = new BufferedReader(new FileReader("/proc/loadavg"))) {

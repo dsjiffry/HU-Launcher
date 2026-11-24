@@ -45,7 +45,9 @@ final class BigMenu {
             b.setPadding(Ui.dp(10), 0, Ui.dp(10), 0);
             b.setBackground(Ui.button(i == 0 ? Ui.SPOTIFY : Ui.RAISED, 20));
             b.setOnClickListener(v -> { d.dismiss(); if (pick != null) pick.onPick(idx); });
-            int h = Ui.dp(items.length > 3 ? 72 : 80);
+            android.util.DisplayMetrics dm = c.getResources().getDisplayMetrics();
+            boolean shortScreen = dm.heightPixels / dm.density < 420; // still a big target, just fits
+            int h = Ui.dp(shortScreen ? 64 : items.length > 3 ? 72 : 80);
             boolean paired = twoCol && i < items.length - 1;
             if (paired && (i % cols == 0)) {
                 row = new LinearLayout(c);
