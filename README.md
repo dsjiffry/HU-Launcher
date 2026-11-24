@@ -72,6 +72,9 @@ and portrait 768×1024.
   notification in the notification shade only, with no sound and no pop-up over your map.
   - **Update** downloads the APK and opens the installer. The helper presses Update for you on Android 9 to 13.
   - Tools → **Check for updates** asks GitHub right away and offers **Update now**. It also has the on/off switch for the daily check.
+- **Keep Spotify ready (optional, Tools → Spotify ready):** HU Launcher stays connected to Spotify's
+  media service, so Android keeps Spotify loaded and restarts it if it gets closed. Music starts
+  instantly and isn't lost when memory runs low. No extra CPU; Spotify keeps its usual memory.
 - **Night screen (optional):** many cheap head units are still too bright at minimum backlight.
   Turn on Tools → Night screen and, between two times you choose (6 PM to 4 AM by default), the home
   screen turns almost black after 5 s without a touch. Only a dim clock and a small music widget
@@ -154,6 +157,8 @@ MCU, radio, Bluetooth, cameras, steering keys, vendor core) and every other home
 .\pc\hu.ps1 stats -Pin 123456             # RAM / CPU / temperature + today's per-app usage
 .\pc\hu.ps1 install HULauncher.apk -Pin 123456   # upload an APK over Wi-Fi and install it
 .\pc\hu.ps1 install bt -Pin 123456        # install the newest APK the unit received over Bluetooth
+# Read-only HTTP endpoints (X-Pin header): GET /apk?pkg=<preinstalled app> downloads that system
+# app's APK so the PC can inspect what a vendor app does; GET/POST /spotify shows or sets Keep Spotify ready.
 .\pc\hu.ps1 keep -Pin 123456              # keep-stopped list   (keep add|remove <pkg...>)
 ```
 Updating HU Launcher itself works the same way. The PC link comes back on its own with the same
