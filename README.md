@@ -8,14 +8,18 @@ multimedia players sold online. They usually have a MediaTek (MTK) or Rockchip c
 | Home | All apps (5 × 2 pages) |
 |---|---|
 | ![Home screen with large clock and music card](docs/screenshots/home.png) | ![App drawer with large icons](docs/screenshots/drawer.png) |
+| **Night screen** | **Night screen settings** |
+| ![Almost black night screen with a dim clock and music controls](docs/screenshots/night.png) | ![Night screen on/off, start and end time, dim slider](docs/screenshots/nightsettings.png) |
 | **Debloat** | **Network firewall** |
 | ![Debloat screen sorting apps into Bloat, Maybe and Keep](docs/screenshots/debloat.png) | ![Per-app firewall allow-list](docs/screenshots/network.png) |
 | **Activity** | **Setup** |
 | ![RAM, CPU and per-app data use](docs/screenshots/monitor.png) | ![All permissions on one screen](docs/screenshots/setup.png) |
 | **Tools** | **Files** |
 | ![Tools menu](docs/screenshots/tools.png) | ![Built-in file manager](docs/screenshots/files.png) |
+| **Check for updates** | |
+| ![Update check result](docs/screenshots/updates.png) | |
 
-<sub>Screenshots from a 1024×600 emulator.</sub>
+<sub>Screenshots from a real MT8163 head unit (1024×600). The PC link address and PIN are blanked out.</sub>
 
 ## Why this exists
 Cheap no-name Android head units usually have weak hardware: an old MediaTek or Rockchip chip,
