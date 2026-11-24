@@ -424,6 +424,13 @@ final class LanServer {
                         .put("message", finished ? result[1] : "timed out").toString());
                 return;
             }
+            case "/notify": // POST {"text":"...","secs":120}   silent shade notification; empty text removes it
+                if (!post) { send(s, 405, "{\"error\":\"POST {\\\"text\\\":...}\"}"); return; }
+                String text = req.optString("text").trim();
+                if (text.length() > 200) text = text.substring(0, 200);
+                send(s, 200, new JSONObject().put("ok", true)
+                        .put("shown", Notice.show(ctx, text, req.optInt("secs", 120))).toString());
+                return;
             case "/stats":
                 send(s, 200, Monitor.report(ctx).toString());
                 return;

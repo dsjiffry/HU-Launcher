@@ -160,6 +160,7 @@ MCU, radio, Bluetooth, cameras, steering keys, vendor core) and every other home
 # Extra HTTP endpoints (X-Pin header): GET /apk?pkg=<preinstalled app> downloads that system
 # app's APK so the PC can inspect what a vendor app does; GET/POST /spotify shows or sets Keep Spotify ready.
 .\pc\hu.ps1 keep -Pin 123456              # keep-stopped list   (keep add|remove <pkg...>)
+.\pc\hu.ps1 notify "Reverse now" -Pin 123456   # silent message in the unit's notification shade (notify "" removes it)
 ```
 Updating HU Launcher itself works the same way. The PC link comes back on its own with the same
 PIN, so the script waits and prints the new version. The PIN only changes when you stop the link

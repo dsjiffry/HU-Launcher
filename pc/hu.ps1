@@ -9,6 +9,7 @@
   .\hu.ps1 install app.apk -Pin 123456   -> uploads and installs an APK (also HU Launcher itself)
   .\hu.ps1 install bt -Pin 123456        -> installs the newest APK received over Bluetooth
   .\hu.ps1 keep [add|remove <pkg...>]    -> "keep stopped" list for apps that can't be disabled
+  .\hu.ps1 notify "Reverse now" [secs]   -> silent notification in the unit's shade (notify "" removes it)
 
   -Ip <address> skips the network scan. verdicts.json looks like:
     { "com.android.browser": { "v": "bloat", "why": "Old insecure browser" },
@@ -16,7 +17,7 @@
   v is bloat | maybe | keep.
 #>
 param(
-    [Parameter(Position = 0)][ValidateSet('find', 'pull', 'push', 'verdicts', 'remote', 'shot', 'tap', 'swipe', 'key', 'text', 'launch', 'net', 'allow', 'block', 'stats', 'forcestop', 'disable', 'install', 'keep')][string]$Cmd = 'find',
+    [Parameter(Position = 0)][ValidateSet('find', 'pull', 'push', 'verdicts', 'remote', 'shot', 'tap', 'swipe', 'key', 'text', 'launch', 'net', 'allow', 'block', 'stats', 'forcestop', 'disable', 'install', 'keep', 'notify')][string]$Cmd = 'find',
     [Parameter(Position = 1, ValueFromRemainingArguments = $true)][string[]]$Args2,
     [string]$Ip,
     [string]$Pin,
@@ -192,6 +193,16 @@ switch ($Cmd) {
         if (-not $r.helper) { Write-Host 'Accessibility helper is off: only silent kills, no full force stops.' -ForegroundColor Yellow }
         foreach ($p in $r.refused.PSObject.Properties) { Write-Host "Refused $($p.Name): $($p.Value)" -ForegroundColor Yellow }
         $r.apps | Format-Table pkg, state, strikes, silentKills, forceStops, nextForceStopMin -AutoSize
+    }
+
+    'notify' {   # notify "text" [secs]   (empty text removes it)
+        Need-Pin
+        $base = Get-Base
+        $t = if ($Args2) { $Args2[0] } else { '' }
+        $secs = if ($Args2.Count -gt 1) { [int]$Args2[1] } else { 120 }
+        $body = [System.Text.Encoding]::UTF8.GetBytes((@{ text = $t; secs = $secs } | ConvertTo-Json -Compress))
+        $r = Invoke-RestMethod -Method Post -Uri "$base/notify" -Headers @{ 'X-Pin' = $Pin } -ContentType 'application/json; charset=utf-8' -Body $body
+        Write-Host "Notification: $($r.shown)"
     }
 
     'stats' {
