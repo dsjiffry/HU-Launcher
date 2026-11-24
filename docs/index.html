@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HU Launcher: free launcher and bloatware remover for Android car head units (no root)</title>
+<meta name="description" content="A light, free and open-source home screen, debloater and per-app firewall for cheap Android car stereos and 2-DIN head units (MediaTek, Rockchip). Remove bloatware, stop apps killing Spotify, block data sent home. No root, no cloud.">
+<link rel="canonical" href="https://dsjiffry.github.io/HU-Launcher/">
+<meta name="theme-color" content="#0b0d12">
+<meta property="og:type" content="website">
+<meta property="og:title" content="HU Launcher: launcher and debloater for Android car head units">
+<meta property="og:description" content="Light home screen, bloatware remover and privacy firewall for cheap Android car stereos. No root, no cloud. Free and open source.">
+<meta property="og:url" content="https://dsjiffry.github.io/HU-Launcher/">
+<meta property="og:image" content="https://dsjiffry.github.io/HU-Launcher/screenshots/home.png">
+<meta property="og:image:width" content="800">
+<meta property="og:image:height" content="469">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "HU Launcher",
+  "operatingSystem": "Android 7 or newer",
+  "applicationCategory": "UtilitiesApplication",
+  "description": "Light launcher, bloatware remover and per-app firewall for cheap, unbranded Android car head units. No root needed.",
+  "url": "https://dsjiffry.github.io/HU-Launcher/",
+  "downloadUrl": "https://github.com/dsjiffry/HU-Launcher/releases/latest/download/HULauncher.apk",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "screenshot": "https://dsjiffry.github.io/HU-Launcher/screenshots/home.png"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Do I need root to remove bloatware from my Android head unit?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. HU Launcher disables apps through Android's own App info screens, keeps apps that can't be disabled stopped, and blocks internet access per app with a local VPN firewall. None of this needs root." } },
+    { "@type": "Question", "name": "Why does my head unit keep closing Spotify or Google Maps?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Many units ship a vendor speed-up tool such as MediaTek DuraSpeed that kills background apps. HU Launcher can keep such tools stopped, and its optional Keep Spotify ready setting keeps Spotify loaded." } },
+    { "@type": "Question", "name": "Which head units does it work on?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Cheap, unbranded Android car stereos and 2-DIN multimedia players running Android 7 to 9, and newer ones too. It has been tested on a MediaTek MT8163 unit with 2 GB of RAM and a 1024x600 screen, and the layout is checked from 800x480 up to 1920x720." } },
+    { "@type": "Question", "name": "Does HU Launcher send any data?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. Its only internet request is a once-a-day update check against its GitHub releases, which you can turn off. Everything else runs on the unit or on your own PC over your own Wi-Fi." } }
+  ]
+}
+</script>
+<style>
+  :root { --bg:#0b0d12; --card:#1a1f2a; --raised:#262c3a; --text:#fff; --muted:#b3b8c4; --dim:#8a90a0; --green:#1db954; --amber:#ffb443; }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin:0; background:var(--bg); color:var(--text); font:17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color:var(--green); }
+  .wrap { max-width:1060px; margin:0 auto; padding:0 20px; }
+  header { padding:56px 0 32px; }
+  h1 { font-size:clamp(30px,5vw,46px); line-height:1.15; margin:0 0 16px; letter-spacing:-0.5px; }
+  .lead { font-size:clamp(17px,2.2vw,20px); color:var(--muted); max-width:760px; margin:0 0 28px; }
+  .tags { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 28px; padding:0; list-style:none; }
+  .tags li { background:var(--raised); color:var(--muted); border-radius:999px; padding:4px 12px; font-size:14px; }
+  .cta { display:flex; flex-wrap:wrap; gap:12px; }
+  .btn { display:inline-block; padding:14px 22px; border-radius:14px; font-weight:600; text-decoration:none; }
+  .btn.primary { background:var(--green); color:#04140a; }
+  .btn.ghost { background:var(--raised); color:var(--text); }
+  .hero-shot { margin:36px 0 8px; border-radius:18px; overflow:hidden; border:1px solid #2a3140; }
+  .hero-shot img { display:block; width:100%; height:auto; }
+  .caption { color:var(--dim); font-size:14px; margin:6px 0 0; }
+  section { padding:40px 0; border-top:1px solid #1c2230; }
+  h2 { font-size:28px; margin:0 0 20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .card { background:var(--card); border-radius:16px; padding:20px; }
+  .card h3 { margin:0 0 6px; font-size:18px; }
+  .card p { margin:0; color:var(--muted); font-size:16px; }
+  .shots { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  figure { margin:0; }
+  figure img { width:100%; height:auto; display:block; border-radius:12px; border:1px solid #2a3140; }
+  figcaption { color:var(--dim); font-size:14px; margin-top:6px; }
+  ol, ul.plain { color:var(--muted); padding-left:22px; }
+  ol li, ul.plain li { margin:6px 0; }
+  details { background:var(--card); border-radius:14px; padding:14px 18px; margin:0 0 10px; }
+  summary { cursor:pointer; font-weight:600; }
+  details p { color:var(--muted); margin:10px 0 0; }
+  code { background:var(--raised); padding:1px 6px; border-radius:6px; font-size:0.92em; }
+  footer { padding:32px 0 48px; color:var(--dim); font-size:14px; border-top:1px solid #1c2230; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>HU Launcher: a fast launcher and bloatware remover for cheap Android car head units</h1>
+  <p class="lead">A light home screen, debloater and per-app privacy firewall for no-name Android car stereos and 2-DIN multimedia players, the kind with a MediaTek or Rockchip chip and a 9 or 10 inch screen. No root, no cloud, free and open source.</p>
+  <ul class="tags" aria-label="Works with">
+    <li>Android car stereo</li><li>2-DIN head unit</li><li>MediaTek / MTK</li><li>Rockchip</li><li>Android 7–9 and newer</li><li>No root</li>
+  </ul>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/dsjiffry/HU-Launcher/releases/latest/download/HULauncher.apk">Download the APK (about 150 KB)</a>
+    <a class="btn ghost" href="https://github.com/dsjiffry/HU-Launcher">Source code on GitHub</a>
+  </div>
+  <div class="hero-shot"><img src="screenshots/home.png" width="800" height="469" alt="HU Launcher home screen on a head unit: large clock, date, Spotify now-playing card and a dock of big app buttons"></div>
+  <p class="caption">Screenshots from a real MT8163 head unit (1024×600).</p>
+</header>
+
+<section>
+  <h2>Why people install it</h2>
+  <ul class="plain">
+    <li>The head unit is slow or laggy, and the stock launcher is heavy and ugly.</li>
+    <li>They want to remove bloatware from an Android car stereo without root.</li>
+    <li>Something keeps killing Spotify or Google Maps in the background (MediaTek DuraSpeed and similar "speed-up" tools).</li>
+    <li>They want to stop a Chinese head unit sending data home: Adups FOTA, log uploaders, Baidu location.</li>
+    <li>They want big, easy buttons that are safe to use while driving.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Features</h2>
+  <div class="grid">
+    <div class="card"><h3>Light home screen</h3><p>About 0% CPU when idle and around 20 MB of RAM. Large clock, a big now-playing card with album art, and a dock of up to 5 apps.</p></div>
+    <div class="card"><h3>Big app drawer</h3><p>Pages of 5 × 2 very large icons. Swipe up from anywhere to open it.</p></div>
+    <div class="card"><h3>Debloat without root</h3><p>Sorts every package into Bloat, Maybe and Keep, then walks you through disabling them one by one, or does it for you.</p></div>
+    <div class="card"><h3>Keep stopped</h3><p>Apps that can't be disabled are kept stopped in the background, with back-off so they never end up in a restart loop.</p></div>
+    <div class="card"><h3>Per-app firewall</h3><p>A local VPN allow-list. Only the system parts other things depend on are allowed at first; you choose the rest. Allowed apps run at full speed.</p></div>
+    <div class="card"><h3>Keep Spotify ready</h3><p>Optional: keeps Spotify loaded so music starts instantly and isn't lost when memory runs low.</p></div>
+    <div class="card"><h3>Night screen</h3><p>Optional: an almost black screen with a dim clock and music controls at night, for units that are too bright even at minimum backlight.</p></div>
+    <div class="card"><h3>File manager</h3><p>Browse internal storage, USB and SD; rename, delete, install APKs, read text files and extract zips.</p></div>
+    <div class="card"><h3>Remote control from your PC</h3><p>See the unit's screen in a PC browser and control it over your own Wi-Fi, protected by a PIN.</p></div>
+    <div class="card"><h3>Let the PC decide</h3><p>Made for Claude Code: it reads every app's permissions and services over Wi-Fi and decides what is bloat, because every vendor ships different packages.</p></div>
+    <div class="card"><h3>Activity</h3><p>Live RAM, CPU and temperature, plus each app's screen time and data use today.</p></div>
+    <div class="card"><h3>Quiet updates</h3><p>A once-a-day check of GitHub releases, shown only in the notification shade. No sound, no pop-up over your map.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Screenshots</h2>
+  <div class="shots">
+    <figure><img src="screenshots/drawer.png" width="800" height="469" loading="lazy" alt="App drawer with very large icons"><figcaption>All apps</figcaption></figure>
+    <figure><img src="screenshots/debloat.png" width="800" height="469" loading="lazy" alt="Debloat screen sorting apps into Bloat, Maybe and Keep"><figcaption>Debloat</figcaption></figure>
+    <figure><img src="screenshots/network.png" width="800" height="469" loading="lazy" alt="Per-app firewall allow-list"><figcaption>Network firewall</figcaption></figure>
+    <figure><img src="screenshots/night.png" width="800" height="469" loading="lazy" alt="Almost black night screen with a dim clock and music controls"><figcaption>Night screen</figcaption></figure>
+    <figure><img src="screenshots/monitor.png" width="800" height="469" loading="lazy" alt="RAM, CPU and per-app data use"><figcaption>Activity</figcaption></figure>
+    <figure><img src="screenshots/files.png" width="800" height="469" loading="lazy" alt="Built-in file manager"><figcaption>Files</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Install</h2>
+  <ol>
+    <li>Download <a href="https://github.com/dsjiffry/HU-Launcher/releases/latest/download/HULauncher.apk">HULauncher.apk</a> and copy it to the unit by USB stick or Bluetooth.</li>
+    <li>Open it on the unit and install it (allow installs from that source if asked).</li>
+    <li>Open <strong>HU Launcher</strong>, tap <strong>Choose home app</strong>, pick HU Launcher, then <strong>Always</strong>.</li>
+    <li>The setup screen lists every permission and opens each setting for you.</li>
+  </ol>
+  <p class="caption">Later updates install from Tools → Check for updates.</p>
+</section>
+
+<section>
+  <h2>Questions</h2>
+  <details><summary>Do I need root to remove bloatware from my head unit?</summary><p>No. HU Launcher disables apps through Android's own App info screens, keeps apps that can't be disabled stopped, and blocks internet access per app with a local VPN firewall. None of this needs root.</p></details>
+  <details><summary>Why does my head unit keep closing Spotify or Google Maps?</summary><p>Many units ship a vendor "speed-up" tool, such as MediaTek DuraSpeed, that kills background apps. HU Launcher can keep such tools stopped, and its optional Keep Spotify ready setting keeps Spotify loaded.</p></details>
+  <details><summary>Which head units does it work on?</summary><p>Cheap, unbranded Android car stereos and 2-DIN multimedia players running Android 7 to 9, and newer ones too. It has been tested on a MediaTek MT8163 unit (2 GB RAM, 1024×600) that claims Android 13 but runs Android 9. The layout is checked at 800×480, 1024×600, 1280×720, 1920×720 and portrait 768×1024.</p></details>
+  <details><summary>Will it break my reverse camera, radio or steering wheel buttons?</summary><p>No. Its cautious built-in rules keep anything that looks like car hardware: CAN bus, MCU, radio, Bluetooth, cameras, steering keys and the vendor's core apps. You can still change any choice yourself.</p></details>
+  <details><summary>Does HU Launcher send any data?</summary><p>No. Its only internet request is a once-a-day update check against its GitHub releases, which you can turn off. Everything else runs on the unit or on your own PC over your own Wi-Fi.</p></details>
+  <details><summary>Is it free?</summary><p>Yes. It's open source under the MIT licence, with no ads and no tracking.</p></details>
+</section>
+
+<footer>
+  HU Launcher is free and open source (MIT). <a href="https://github.com/dsjiffry/HU-Launcher">Source, issues and releases on GitHub</a>. This page uses no cookies, trackers or outside fonts.
+</footer>
+</div>
+</body>
+</html>

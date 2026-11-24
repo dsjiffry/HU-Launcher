@@ -5,6 +5,8 @@ head units: the no-name "Android car stereo", "Android car radio" or double-DIN 
 multimedia players sold online. They usually have a MediaTek (MTK) or Rockchip chip and a
 9 or 10 inch screen. No root needed.
 
+**Website:** https://dsjiffry.github.io/HU-Launcher/ · **Download:** [latest HULauncher.apk](https://github.com/dsjiffry/HU-Launcher/releases/latest/download/HULauncher.apk)
+
 | Home | All apps (5 × 2 pages) |
 |---|---|
 | ![Home screen with large clock and music card](docs/screenshots/home.png) | ![App drawer with large icons](docs/screenshots/drawer.png) |
@@ -82,7 +84,7 @@ and portrait 768×1024.
   Tap anywhere to get the normal home screen back. It only replaces the home screen, not other apps.
 - **Activity:** live RAM, CPU clocks and temperature, plus each app's screen time and data used today (needs Usage access). Android 8 and newer don't let apps see other apps' CPU or RAM.
 
-Plain Java and framework Views only: no AndroidX, Compose or native code. The APK is about 130 KB.
+Plain Java and framework Views only: no AndroidX, Compose or native code. The APK is about 150 KB.
 
 ## Download
 Get `HULauncher.apk` from [Releases](../../releases), or build it yourself (below). Release APKs
