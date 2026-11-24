@@ -156,7 +156,7 @@ MCU, radio, Bluetooth, cameras, steering keys, vendor core) and every other home
 .\pc\hu.ps1 block com.adups.fota -Pin 123456
 .\pc\hu.ps1 stats -Pin 123456             # RAM / CPU / temperature + today's per-app usage
 .\pc\hu.ps1 install HULauncher.apk -Pin 123456   # upload an APK over Wi-Fi and install it
-.\pc\hu.ps1 install bt -Pin 123456        # install the newest APK the unit received over Bluetooth
+.\pc\hu.ps1 install bt -Pin 123456        # shows the newest APK the unit received over Bluetooth, installs it after you confirm
 # Extra HTTP endpoints (X-Pin header): GET /apk?pkg=<preinstalled app> downloads that system
 # app's APK so the PC can inspect what a vendor app does; GET/POST /spotify shows or sets Keep Spotify ready.
 .\pc\hu.ps1 keep -Pin 123456              # keep-stopped list   (keep add|remove <pkg...>)

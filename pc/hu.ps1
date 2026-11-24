@@ -161,8 +161,14 @@ switch ($Cmd) {
         $before = Invoke-RestMethod -Uri "$base/install" -Headers $h
         if (-not $Args2) { throw 'Usage: install <file.apk>  or  install bt' }
         if ($Args2[0] -eq 'bt') {
-            $r = Invoke-RestMethod -Method Post -Uri "$base/install" -Headers $h -ContentType 'application/json' -Body '{"bluetooth":true}'
-            Write-Host "Installing $($r.file) from the Bluetooth folder ..."
+            # The unit only names the newest Bluetooth APK; nothing installs until you confirm that exact file.
+            $c = Invoke-RestMethod -Method Post -Uri "$base/install" -Headers $h -ContentType 'application/json' -Body '{"bluetooth":true}'
+            $when = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$c.modified).LocalDateTime
+            Write-Host ("Newest APK in the Bluetooth folder: {0}  ({1:N0} KB, received {2})" -f $c.path, ($c.bytes / 1KB), $when)
+            if ((Read-Host 'Install this file? (y/N)') -notmatch '^(y|yes)$') { Write-Host 'Cancelled.'; return }
+            $body = [System.Text.Encoding]::UTF8.GetBytes((@{ path = $c.path } | ConvertTo-Json -Compress))
+            $r = Invoke-RestMethod -Method Post -Uri "$base/install" -Headers $h -ContentType 'application/json; charset=utf-8' -Body $body
+            Write-Host "Installing $($r.file) ..."
         } else {
             $apk = (Resolve-Path $Args2[0]).Path
             $name = [Uri]::EscapeDataString((Split-Path $apk -Leaf))

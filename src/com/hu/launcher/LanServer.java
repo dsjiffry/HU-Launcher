@@ -145,7 +145,7 @@ final class LanServer {
                     try {
                         s.setSoTimeout(5000);
                         handle(s, ip);
-                    } catch (Exception ignored) {
+                    } catch (Throwable ignored) { // incl. Errors: one bad request must never kill the launcher
                     } finally {
                         close(s);
                         slots.release();
@@ -334,7 +334,7 @@ final class LanServer {
             sendSystemApk(s, query.get("pkg"));
             return;
         }
-        if (length < 0 || length > MAX_BODY) { send(s, 413, "{\"error\":\"too large\"}"); return; }
+        if (length < 0 || length > MAX_BODY || (open && length > 0)) { send(s, 413, "{\"error\":\"too large\"}"); return; }
         byte[] body = new byte[(int) length];
         for (int off = 0; off < length; ) {
             int r = in.read(body, off, body.length - off);
@@ -358,12 +358,29 @@ final class LanServer {
             send(s, 200, new JSONObject().put("token", newStreamToken()).toString());
             return;
         }
+        if (tooDeep(body)) { send(s, 400, "{\"error\":\"JSON nested too deeply\"}"); return; }
         try {
             route(s, method, path, body.length == 0 ? new JSONObject()
                     : new JSONObject(new String(body, StandardCharsets.UTF_8)));
-        } catch (Exception e) {
+        } catch (Exception | StackOverflowError e) {
             send(s, 500, "{\"error\":" + JSONObject.quote(String.valueOf(e)) + "}");
         }
+    }
+
+    /** org.json parses recursively: deep [[[[... would overflow the stack. Real requests nest 2-3 levels. */
+    private static boolean tooDeep(byte[] b) {
+        int depth = 0;
+        boolean str = false, esc = false;
+        for (byte c : b) {
+            if (str) {
+                if (esc) esc = false;
+                else if (c == '\\') esc = true;
+                else if (c == '"') str = false;
+            } else if (c == '"') str = true;
+            else if (c == '[' || c == '{') { if (++depth > 32) return true; }
+            else if (c == ']' || c == '}') depth--;
+        }
+        return false;
     }
 
     private void route(Socket s, String method, String path, JSONObject req) throws Exception {
@@ -447,11 +464,17 @@ final class LanServer {
                 JSONObject refused = post ? Keeper.applyRemote(ctx, req) : new JSONObject();
                 send(s, 200, Keeper.report(ctx).put("refused", refused).toString());
                 return;
-            case "/install": // GET status/version   POST {"bluetooth":true} | {"path":"/sdcard/x.apk"}
+            case "/install": // GET status/version   POST {"bluetooth":true} (only names the file) | {"path":"/sdcard/x.apk"}
                 if (post) {
-                    java.io.File f = req.optBoolean("bluetooth") ? Installer.newestBluetoothApk()
-                            : req.has("path") ? new java.io.File(req.getString("path")) : null;
-                    if (f == null) { send(s, 404, "{\"error\":\"no APK found in the Bluetooth folder\"}"); return; }
+                    if (req.optBoolean("bluetooth")) { // never installs by itself: the PC confirms the exact path
+                        java.io.File b = Installer.newestBluetoothApk();
+                        if (b == null) { send(s, 404, "{\"error\":\"no APK found in the Bluetooth folder\"}"); return; }
+                        send(s, 200, new JSONObject().put("path", b.getPath()).put("file", b.getName())
+                                .put("bytes", b.length()).put("modified", b.lastModified()).toString());
+                        return;
+                    }
+                    java.io.File f = req.has("path") ? new java.io.File(req.getString("path")) : null;
+                    if (f == null) { send(s, 400, "{\"error\":\"give a path\"}"); return; }
                     int id = Installer.installFile(ctx, f);
                     send(s, 200, new JSONObject().put("ok", true).put("session", id).put("file", f.getName())
                             .put("helper", AutoClicker.available()).toString());

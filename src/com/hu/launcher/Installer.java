@@ -101,10 +101,10 @@ final class Installer {
         try (InputStream in = new FileInputStream(f)) { return install(c, in, f.length(), f.getName()); }
     }
 
-    /** Newest .apk in the usual Bluetooth inbox folders (and Download), or null. */
+    /** Newest .apk in the usual Bluetooth inbox folders, or null (not Download: any browser or app can drop files there). */
     static File newestBluetoothApk() {
         File root = Environment.getExternalStorageDirectory();
-        String[] dirs = {"bluetooth", "Bluetooth", "Download/Bluetooth", "Download/bluetooth", "Download"};
+        String[] dirs = {"bluetooth", "Bluetooth", "Download/Bluetooth", "Download/bluetooth"};
         File best = null;
         for (String d : dirs) {
             File[] fs = new File(root, d).listFiles();
