@@ -23,3 +23,6 @@ pc/*.log
 
 # ...except the README screenshots (taken on an emulator, no personal data)
 !docs/screenshots/*.png
+
+# Vendor APKs pulled for inspection (not ours to publish)
+pc/apks/
