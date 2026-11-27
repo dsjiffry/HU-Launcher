@@ -78,6 +78,7 @@ public class MediaListener extends NotificationListenerService {
 
     @Override public void onListenerConnected() {
         SpotifyKeeper.ensure(this); // our process is now kept bound by the system: a good anchor
+        Firewall.ensure(this);      // Android rebinds us if the process died: bring the firewall back
         sessions = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
         try {
             sessions.addOnActiveSessionsChangedListener(onSessions, component(this), handler);

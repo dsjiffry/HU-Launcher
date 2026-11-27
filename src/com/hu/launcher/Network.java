@@ -77,7 +77,7 @@ public class Network extends Activity {
 
         TextView hint = Ui.text(this, 16, Ui.TEXT_2, Ui.REGULAR);
         hint.setText("Only system parts are allowed at first. Tap the apps you use (Spotify, Maps…) to allow them. "
-                + "Allowed apps run at full speed; everything else, including new apps, is cut off.");
+                + "Allowed apps get internet; everything else, including new apps, is cut off.");
         LinearLayout.LayoutParams hl = Ui.lp(-1, -2);
         hl.topMargin = Ui.dp(6);
         page.addView(hint, hl);
@@ -179,9 +179,9 @@ public class Network extends Activity {
 
     /**
      * First time only: point to Android's Always-on VPN setting so the firewall comes back by
-     * itself (boot, crash, low memory). "Block connections without VPN" must stay OFF on
-     * Android 9: lockdown blocks every app that bypasses the VPN, i.e. exactly the apps this
-     * firewall allows (they skip the VPN so they run at full speed).
+     * itself (boot, crash, low memory). Lockdown ("Block connections without VPN") is safe to
+     * turn ON: the firewall forwards the allowed apps itself, so they keep internet while every
+     * other app is cut off. Turn lockdown OFF before turning the firewall off, or the unit has no network.
      */
     private void remindOnce() {
         android.content.SharedPreferences p = getSharedPreferences("firewall", MODE_PRIVATE);
@@ -190,8 +190,9 @@ public class Network extends Activity {
         BigMenu.show(this, "One more step (once)",
                 "In VPN settings, tap the gear next to \"HU Launcher firewall\" and turn ON \"Always-on VPN\". "
                         + "Android then restarts the firewall at boot or if it gets killed, so blocked apps never slip through.\n\n"
-                        + "Leave \"Block connections without VPN\" OFF: on this Android version it would also cut off "
-                        + "the apps you allowed (Spotify, Maps...).",
+                        + "Then turn ON \"Block connections without VPN\" too: blocked apps then stay offline even while the firewall restarts, "
+                        + "and the apps you allowed (Spotify, Maps...) still get internet through the firewall.\n\n"
+                        + "To switch the firewall off later, turn \"Block connections without VPN\" OFF first.",
                 new String[]{"Open VPN settings", "Later"}, idx -> {
                     if (idx != 0) return;
                     try { startActivity(new Intent(android.provider.Settings.ACTION_VPN_SETTINGS)); }

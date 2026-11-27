@@ -44,7 +44,10 @@ public class RemoteControl extends AccessibilityService {
         if (s != null) s.performGlobalAction(GLOBAL_ACTION_BACK);
     }
 
-    @Override protected void onServiceConnected() { instance = this; }
+    @Override protected void onServiceConnected() {
+        instance = this;
+        Firewall.ensure(this); // Android rebinds us if the process died: bring the firewall back
+    }
     @Override public boolean onUnbind(Intent i) { instance = null; return super.onUnbind(i); }
     @Override public void onDestroy() { instance = null; super.onDestroy(); }
     @Override public void onAccessibilityEvent(AccessibilityEvent e) { }

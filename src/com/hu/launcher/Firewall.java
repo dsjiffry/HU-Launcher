@@ -1,13 +1,19 @@
 package com.hu.launcher;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.database.ContentObserver;
 import android.net.VpnService;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemClock;
+import android.provider.Settings;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -21,13 +27,16 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Whitelist firewall built on VpnService, designed to cost nothing for allowed apps:
- * allowed apps are *excluded* from the VPN (addDisallowedApplication) so their traffic never
- * touches this code. Everyone else is routed into the tun interface and simply dropped. No DNS
- * server is given to the VPN, so blocked apps fail fast at name lookup instead of hanging.
+ * Whitelist firewall built on VpnService. Two modes, chosen by Android's "Block connections
+ * without VPN" (lockdown) setting:
+ *  - lockdown off: allowed apps are excluded from the tunnel (full speed); every other app is
+ *    routed in and its packets are dropped (drain).
+ *  - lockdown on: only the allowed apps are in the tunnel, and Relay forwards their traffic to the
+ *    internet. Blocked apps have no route, and lockdown keeps them off the physical network.
  */
 public class Firewall extends VpnService {
     static final String STOP = "stop";
@@ -63,6 +72,9 @@ public class Firewall extends VpnService {
     static final AtomicLong blockedPackets = new AtomicLong();
     private static volatile boolean running;
     private ParcelFileDescriptor tun;
+    private Relay relay;
+    private String applied;                 // signature of the tunnel in place
+    private long lastDeath, retryDelay;
 
     static final class NetApp {
         String pkg, label;
@@ -125,15 +137,36 @@ public class Firewall extends VpnService {
             p.edit().putStringSet("allow", s).putInt("defaultsV", DEFAULTS_VERSION).apply();
         }
         Set<String> out = new HashSet<>(s);
+        // The system names are trusted only on system apps: an installed app that borrows one stays
+        // blocked until you allow it yourself.
+        Set<String> chosen = p.getStringSet("chosen", Collections.<String>emptySet());
+        for (String pkg : ESSENTIAL) {
+            if (out.contains(pkg) && !chosen.contains(pkg) && userInstalled(c, pkg)) out.remove(pkg);
+        }
         out.add(c.getPackageName()); // never cut off the PC link
         return out;
     }
 
+    private static boolean userInstalled(Context c, String pkg) {
+        try {
+            return (c.getPackageManager().getApplicationInfo(pkg, 0).flags & ApplicationInfo.FLAG_SYSTEM) == 0;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
     static void setAllowed(Context c, Iterable<String> pkgs, boolean allow) {
-        Set<String> s = allowed(c);
-        for (String p : pkgs) { if (allow) s.add(p); else s.remove(p); }
-        prefs(c).edit().putStringSet("allow", s).apply();
+        save(c, pkgs, allow);
         if (running) start(c);
+    }
+
+    private static void save(Context c, Iterable<String> pkgs, boolean allow) {
+        Set<String> s = allowed(c);
+        Set<String> chosen = new HashSet<>(prefs(c).getStringSet("chosen", Collections.<String>emptySet()));
+        for (String p : pkgs) {
+            if (allow) { s.add(p); chosen.add(p); } else { s.remove(p); chosen.remove(p); }
+        }
+        prefs(c).edit().putStringSet("allow", s).putStringSet("chosen", chosen).apply();
     }
 
     static void setEnabled(Context c, boolean on) {
@@ -141,14 +174,21 @@ public class Firewall extends VpnService {
         if (on) start(c); else c.startService(new Intent(c, Firewall.class).setAction(STOP));
     }
 
-    /** Starts (or re-applies) the firewall if it's switched on and consent was given before. */
+    /**
+     * Starts the firewall if it's switched on and consent was given before. Safe to call often:
+     * a tunnel that is already right is left alone.
+     */
     static void ensure(Context c) {
         if (enabled(c) && VpnService.prepare(c) == null) start(c);
     }
 
     private static void start(Context c) {
         if (VpnService.prepare(c) != null) return; // needs the one-time consent dialog first
-        c.startService(new Intent(c, Firewall.class));
+        try {
+            c.startService(new Intent(c, Firewall.class));
+        } catch (IllegalStateException | SecurityException ignored) {
+            // Android refused a start from the background: the next call tries again
+        }
     }
 
     // ---- PC link -----------------------------------------------------------------------------
@@ -169,19 +209,33 @@ public class Firewall extends VpnService {
     }
 
     static void applyRemote(Context c, JSONObject req) throws Exception {
-        List<String> allow = new ArrayList<>(), block = new ArrayList<>();
-        JSONArray a = req.optJSONArray("allow"), b = req.optJSONArray("block");
-        if (a != null) for (int i = 0; i < a.length(); i++) allow.add(a.getString(i));
-        if (b != null) for (int i = 0; i < b.length(); i++) block.add(b.getString(i));
-        if (!allow.isEmpty()) setAllowed(c, allow, true);
-        if (!block.isEmpty()) setAllowed(c, block, false);
-        if (req.has("enabled")) setEnabled(c, req.getBoolean("enabled"));
+        List<String> allow = packages(req.optJSONArray("allow")), block = packages(req.optJSONArray("block"));
+        Boolean on = req.has("enabled") ? req.getBoolean("enabled") : null;
+        if (!allow.isEmpty()) save(c, allow, true);
+        if (!block.isEmpty()) save(c, block, false);
+        // one rebuild for the whole request: each rebuild interrupts connections
+        if (on != null) setEnabled(c, on);
+        else if (running && !(allow.isEmpty() && block.isEmpty())) start(c);
+    }
+
+    private static List<String> packages(JSONArray a) throws Exception {
+        List<String> out = new ArrayList<>();
+        if (a == null) return out;
+        for (int i = 0; i < a.length(); i++) {
+            Object o = a.get(i);
+            if (!(o instanceof String) || !((String) o).matches("[A-Za-z0-9_.]{1,255}")) {
+                throw new IllegalArgumentException("not a package name");
+            }
+            out.add((String) o);
+        }
+        return out;
     }
 
     // ---- VPN ---------------------------------------------------------------------------------
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && STOP.equals(intent.getAction())) {
+        // A null intent is Android restarting us after the process died.
+        if (intent != null ? STOP.equals(intent.getAction()) : !enabled(this)) {
             shutdown();
             stopSelf();
             return START_NOT_STICKY;
@@ -190,16 +244,34 @@ public class Firewall extends VpnService {
         return START_STICKY;
     }
 
+    /** Builds the tunnel for the current mode and allow-list, unless the one in place already fits. */
     private void establish() {
+        boolean lockdown = lockdown(this);
+        Set<String> allow = allowed(this);
+        String wanted = signature(lockdown, allow);
+        if (tun != null && wanted.equals(applied)) return;
         Builder b = new Builder();
         b.setSession("HU Launcher firewall");
         b.addAddress("10.88.0.1", 32);
-        b.addRoute("0.0.0.0", 0);
-        try { b.addAddress("fd00:88::1", 128); b.addRoute("::", 0); } catch (RuntimeException ignored) { }
-        b.setMtu(1500);
+        b.addRoute("0.0.0.0", 0);   // IPv4 only: IPv6 is not routed, so apps fall back to IPv4
         b.setBlocking(true);
-        for (String pkg : allowed(this)) {
-            try { b.addDisallowedApplication(pkg); } catch (PackageManager.NameNotFoundException ignored) { }
+        if (lockdown) {
+            // Lockdown on: "Block connections without VPN" cuts off every app outside the tunnel.
+            // So only the allowed apps go in, and Relay forwards their traffic. Blocked apps have no route.
+            b.setMtu(Relay.MTU);
+            try { b.addAllowedApplication(getPackageName()); } catch (PackageManager.NameNotFoundException ignored) { }
+            for (String pkg : allow) {
+                try { b.addAllowedApplication(pkg); } catch (PackageManager.NameNotFoundException ignored) { }
+            }
+        } else {
+            // Lockdown off: allowed apps stay outside the tunnel (full speed); everything else is
+            // routed in and dropped by drain().
+            b.setMtu(1500);
+            // Name lookups of blocked apps go to an address inside the tunnel, so they are dropped too.
+            b.addDnsServer("10.88.0.2");
+            for (String pkg : allow) {
+                try { b.addDisallowedApplication(pkg); } catch (PackageManager.NameNotFoundException ignored) { }
+            }
         }
         ParcelFileDescriptor next;
         try {
@@ -214,14 +286,49 @@ public class Firewall extends VpnService {
             return;
         }
         ParcelFileDescriptor old = tun;
+        Relay oldRelay = relay;
+        final ParcelFileDescriptor made = next;
+        Runnable died = () -> main.post(() -> tunnelDied(made));
         tun = next;
+        applied = wanted;
         running = true;
-        drain(next);
+        if (lockdown) {
+            relay = new Relay(this, next, died);
+            relay.start();
+        } else {
+            relay = null;
+            drain(next, died);
+        }
+        if (oldRelay != null) oldRelay.stop();
         close(old);
     }
 
-    /** Reads and discards what blocked apps try to send (sleeps in read() when they're quiet). */
-    private static void drain(final ParcelFileDescriptor pfd) {
+    /** Everything the tunnel depends on: the mode, and which apps (by UID) are allowed. */
+    private String signature(boolean lockdown, Set<String> allow) {
+        StringBuilder s = new StringBuilder(lockdown ? "lock" : "drain");
+        for (String pkg : new TreeSet<>(allow)) {
+            try {
+                s.append(' ').append(pkg).append(':').append(getPackageManager().getApplicationInfo(pkg, 0).uid);
+            } catch (PackageManager.NameNotFoundException ignored) { }
+        }
+        return s.toString();
+    }
+
+    /** The tunnel stopped working without us closing it: build a new one, waiting longer if it repeats. */
+    private void tunnelDied(ParcelFileDescriptor dead) {
+        if (!running || tun != dead) return;
+        long now = SystemClock.elapsedRealtime();
+        retryDelay = now - lastDeath < 2 * 60000L ? Math.min(60000L, Math.max(1000L, retryDelay * 2)) : 0;
+        lastDeath = now;
+        main.postDelayed(() -> {
+            if (!running || tun != dead) return;
+            applied = null;
+            establish();
+        }, retryDelay);
+    }
+
+    /** Reads and discards what blocked apps send through the tunnel (lockdown-off mode). */
+    private static void drain(final ParcelFileDescriptor pfd, final Runnable died) {
         Thread t = new Thread(() -> {
             byte[] buf = new byte[32 * 1024];
             // Not closed here: the ParcelFileDescriptor owns the fd; closing it ends this loop.
@@ -229,16 +336,51 @@ public class Firewall extends VpnService {
             try {
                 while (in.read(buf) >= 0) blockedPackets.incrementAndGet();
             } catch (IOException ignored) { }
+            died.run();   // ignored if we replaced or closed the tunnel ourselves
         }, "fw-drain");
         t.setDaemon(true);
         t.setPriority(Thread.MIN_PRIORITY);
         t.start();
     }
 
+    /**
+     * True when Android's "Block connections without VPN" (lockdown) is on for this app. If Android
+     * names a different always-on app, it counts as off: that mode blocks apps without relying on
+     * lockdown. Newer Android versions hide the name, and then the lockdown setting decides.
+     */
+    static boolean lockdown(Context c) {
+        ContentResolver r = c.getContentResolver();
+        if (Settings.Secure.getInt(r, LOCKDOWN_KEY, 0) != 1) return false;
+        String app = null;
+        try { app = Settings.Secure.getString(r, ALWAYS_ON_KEY); } catch (SecurityException ignored) { }
+        return app == null || app.equals(c.getPackageName());
+    }
+
+    private static final String LOCKDOWN_KEY = "always_on_vpn_lockdown";
+    private static final String ALWAYS_ON_KEY = "always_on_vpn_app";
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private ContentObserver lockdownWatch;
+
+    /** Re-applies the firewall when lockdown is switched, since the tunnel's mode depends on it. */
+    @Override public void onCreate() {
+        super.onCreate();
+        lockdownWatch = new ContentObserver(main) {
+            @Override public void onChange(boolean selfChange) { if (running) establish(); }
+        };
+        for (String key : new String[]{LOCKDOWN_KEY, ALWAYS_ON_KEY}) {
+            getContentResolver().registerContentObserver(Settings.Secure.getUriFor(key), false, lockdownWatch);
+        }
+    }
+
     private void shutdown() {
         running = false;
-        close(tun);
+        main.removeCallbacksAndMessages(null);
+        if (relay != null) relay.stop();
+        relay = null;
+        ParcelFileDescriptor p = tun;
         tun = null;
+        applied = null;
+        close(p);
     }
 
     private static void close(ParcelFileDescriptor p) {
@@ -252,6 +394,7 @@ public class Firewall extends VpnService {
     }
 
     @Override public void onDestroy() {
+        if (lockdownWatch != null) getContentResolver().unregisterContentObserver(lockdownWatch);
         shutdown();
         super.onDestroy();
     }

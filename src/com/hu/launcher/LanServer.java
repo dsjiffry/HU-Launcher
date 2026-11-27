@@ -358,7 +358,7 @@ final class LanServer {
             send(s, 200, new JSONObject().put("token", newStreamToken()).toString());
             return;
         }
-        if (tooDeep(body)) { send(s, 400, "{\"error\":\"JSON nested too deeply\"}"); return; }
+        if (unsafeJson(body)) { send(s, 400, "{\"error\":\"JSON nested too deeply or not strict\"}"); return; }
         try {
             route(s, method, path, body.length == 0 ? new JSONObject()
                     : new JSONObject(new String(body, StandardCharsets.UTF_8)));
@@ -367,18 +367,30 @@ final class LanServer {
         }
     }
 
-    /** org.json parses recursively: deep [[[[... would overflow the stack. Real requests nest 2-3 levels. */
-    private static boolean tooDeep(byte[] b) {
+    /**
+     * org.json parses recursively: deep [[[[... would overflow the stack. Real requests nest 2-3
+     * levels. It also accepts comments, single quotes and bare words, which could hide brackets
+     * from this count, so only strict JSON gets through.
+     */
+    private static boolean unsafeJson(byte[] b) {
         int depth = 0;
         boolean str = false, esc = false;
+        byte before = 0;   // last byte outside strings that isn't white space
         for (byte c : b) {
             if (str) {
                 if (esc) esc = false;
                 else if (c == '\\') esc = true;
                 else if (c == '"') str = false;
-            } else if (c == '"') str = true;
+                continue;
+            }
+            if (c == ' ' || c == '\t' || c == '\r' || c == '\n') continue;
+            if (c == '"') {
+                if (before != 0 && before != '{' && before != '[' && before != ',' && before != ':') return true;
+                str = true;
+            } else if (c == '\'' || c == '/' || c == '#' || c == '\\' || c == ';' || c == '=') return true;
             else if (c == '[' || c == '{') { if (++depth > 32) return true; }
             else if (c == ']' || c == '}') depth--;
+            before = c;
         }
         return false;
     }
