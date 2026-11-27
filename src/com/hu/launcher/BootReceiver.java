@@ -11,5 +11,6 @@ public class BootReceiver extends BroadcastReceiver {
         // The PC link stays off after a reboot (even if Home already brought it up) and gets a fresh PIN.
         if (PcLink.running()) PcLink.stop(c); else PcLink.forget(c);
         Firewall.ensure(c);
+        Odometer.ensure(c);
     }
 }

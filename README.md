@@ -67,6 +67,7 @@ and portrait 768×1024.
   It reads the full app list with permissions, services and file paths, works out what each app
   does, and sends back a verdict for each one: bloat, maybe or keep, with a reason.
 - **Setup screen:** on first start, one screen lists every permission (home app, notification access, accessibility, usage access, storage, install APKs). Each card opens that exact setting, where Android allows it, and shows a tick when it's on. You can open it again from Tools → Setup.
+  Location is only needed for the distance counter, and is asked for when you turn that on.
 - **Remote control:** turn on Tools → PC link, then open `http://<unit-ip>:8765` in a PC browser. You see the screen live and can click, swipe, scroll, type and press Back/Home. Screen sharing asks once each time it starts (tick "Don't show again"). Touch needs the "HU Launcher remote" accessibility service, which you turn on once.
 - **Helper (same accessibility service):** Debloat → Review → **Auto-disable all** presses Disable and confirms for each app. Activity can **force-stop** an app or **stop background apps** (only apps you installed, never the one playing music). Screen-share prompts are accepted automatically.
 - **Network firewall:** a per-app allow-list (Tools → Firewall), built on Android's VPN. At first only the system parts that other things quietly depend on are allowed: network and hotspot sign-in checks, clock sync, mobile data, the download manager, Google Play services and Play Store, offline voices and GPS assistance. Everything else, including Spotify, Maps and any app you install later, is cut off until you tap it to allow it. It works in one of two modes, set by Android's "Block connections without VPN" option (called lockdown here):
@@ -86,6 +87,14 @@ and portrait 768×1024.
   screen turns almost black after 5 s without a touch. Only a dim clock and a small music widget
   (song, art, play/skip) stay, and the status bar hides. A slider sets how dim they are (0–90%).
   Tap anywhere to get the normal home screen back. It only replaces the home screen, not other apps.
+- **Distance counter (optional, off by default):** turn it on in Tools → Distance. It shows the distance
+  driven since you last reset it (for example `2352 KM`) above the clock and in All apps, handy for
+  knowing when the next service is due. You can switch to miles, or to a countdown: enter a value (say
+  `5000`) and it counts down, going negative once you pass it. It counts from GPS, so expect it to differ
+  a little from the car's odometer; tunnels, car parks and the time before the unit has started are the
+  weak spots. The reading is dimmed while it can't count: tap it to allow location or turn GPS on. Only
+  the total is stored: no positions are kept or sent. While it is on, Android shows a silent "Counting
+  distance" entry in the notification shade.
 - **Activity:** live RAM, CPU clocks and temperature, plus each app's screen time and data used today (needs Usage access). Android 8 and newer don't let apps see other apps' CPU or RAM.
 
 Plain Java and framework Views only: no AndroidX, Compose or native code. The APK is about 150 KB.

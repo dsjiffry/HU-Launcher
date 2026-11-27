@@ -1,6 +1,8 @@
 package com.hu.launcher;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -19,11 +21,17 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.InputFilter;
+import android.text.InputType;
 import android.service.notification.NotificationListenerService;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
 import android.widget.BaseAdapter;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridView;
 import android.widget.ImageView;
@@ -35,7 +43,8 @@ import android.widget.Toast;
 import java.util.List;
 
 /** Home screen: giant clock, music card, a dock of pinned apps, and the full-screen app drawer. */
-public class Home extends Activity implements MediaListener.Listener, Apps.Listener, MusicCard.Host {
+public class Home extends Activity implements MediaListener.Listener, Apps.Listener, MusicCard.Host,
+        Odometer.Listener {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Apps apps;
     private MusicCard music;
@@ -43,7 +52,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
     private LinearLayout dock;
     private View allAppsBtn;
     private FrameLayout drawer;
-    private TextView drawerCount;
+    private TextView drawerCount, homeKm, drawerKm;
     private AppPager pager;
     private Dialog dialog;
     private SharedPreferences prefs;
@@ -84,6 +93,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         registerReceiver(packages, f);
         Apps.BG.execute(() -> Firewall.ensure(this)); // home starts at boot: bring the firewall up
         SpotifyKeeper.ensure(this);
+        Odometer.ensure(this);
         if (!PcLink.running() && PcLink.resumeAfterInstall(this)) PcLink.start(this); // updated over the link
 
         if (MediaListener.hasAccess(this)) {
@@ -101,6 +111,9 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         super.onResume();
         MediaListener.listener = this;
         music.start();
+        Odometer.listener = this;
+        Odometer.ensure(this);
+        onDistanceChanged();
         Keeper.homeResumed(this);
         Updater.maybeCheck(this); // once a day at most, background thread
         if (!onboardShown) {
@@ -132,6 +145,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         hideNight();
         Keeper.homePaused();
         MediaListener.listener = null;
+        Odometer.listener = null;
         music.stop();
         super.onPause();
     }
@@ -156,6 +170,125 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
     @Override public void onMediaChanged() {
         if (night.showing()) night.refresh();
         else music.refresh();
+    }
+
+    // ---- Distance ------------------------------------------------------------------------------
+
+    @Override public void onDistanceChanged() {
+        int shown = Odometer.enabled(this) ? View.VISIBLE : View.GONE;
+        String s = Odometer.text(this);
+        // Dimmed while it can't count (location not allowed, or GPS off); a tap fixes that.
+        int color = Odometer.allowed(this) && Odometer.gpsOn(this) ? Ui.TEXT : Ui.TEXT_3;
+        for (TextView t : new TextView[]{homeKm, drawerKm}) {
+            t.setVisibility(shown);
+            t.setText(s);
+            t.setTextColor(color);
+        }
+    }
+
+    private TextView buildKm() {
+        TextView t = Ui.line(this, 22, Ui.TEXT, Ui.MEDIUM);
+        t.setPadding(Ui.dp(12), Ui.dp(6), Ui.dp(12), Ui.dp(6));
+        t.setOnClickListener(v -> onKmTap());
+        return t;
+    }
+
+    /** Only does something while the reading can't count: asks for GPS or opens its setting. */
+    private void onKmTap() {
+        if (!Odometer.allowed(this)) {
+            // After "Don't ask again" the dialog no longer appears: send the user to App info instead.
+            if (prefs.getBoolean("gpsAsked", false)
+                    && !shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
+                Toast.makeText(this, "Open Permissions → Location", Toast.LENGTH_LONG).show();
+                appInfo(this, getPackageName());
+                return;
+            }
+            prefs.edit().putBoolean("gpsAsked", true).apply();
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 2);
+        } else if (!Odometer.gpsOn(this)) {
+            try { startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)); }
+            catch (RuntimeException e) { Toast.makeText(this, "Location settings are hidden on this unit", Toast.LENGTH_LONG).show(); }
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
+        Odometer.ensure(this);
+        onDistanceChanged();
+    }
+
+    private void distanceMenu() {
+        if (!Odometer.enabled(this)) {
+            dialog = BigMenu.show(this, "Distance counter is off",
+                    "Shows the distance driven above the clock and in All apps, counted by GPS.",
+                    new String[]{"Turn on", "Cancel"}, idx -> {
+                        if (idx != 0) return;
+                        Odometer.setEnabled(this, true);
+                        if (!Odometer.allowed(this) || !Odometer.gpsOn(this)) onKmTap();
+                    });
+            return;
+        }
+        final long from = Odometer.countdownFrom(this);
+        final boolean miles = Odometer.miles(this);
+        String msg = "Now " + Odometer.text(this) + (from > 0
+                ? ", counting down from " + from + " " + Odometer.unit(this) + "." : ", counting up.");
+        String reset = from > 0 ? "Reset to " + from : "Reset to 0";
+        String units = miles ? "Use KM" : "Use miles";
+        String[] items = from > 0
+                ? new String[]{reset, "Change countdown", "Count up instead", units, "Turn off", "Cancel"}
+                : new String[]{reset, "Count down instead", units, "Turn off", "Cancel"};
+        dialog = BigMenu.show(this, "Distance", msg, items, idx -> {
+            String pick = items[idx];
+            if (pick.equals(reset)) Odometer.reset(this);
+            else if (pick.equals("Count up instead")) Odometer.countUp(this);
+            else if (pick.equals(units)) Odometer.setMiles(this, !miles);
+            else if (pick.equals("Turn off")) Odometer.setEnabled(this, false);
+            else if (!pick.equals("Cancel")) countdownDialog(from > 0 ? from : miles ? 3000 : 5000);
+        });
+    }
+
+    /** Asks for the countdown's starting value. At the top of the screen, clear of the keyboard. */
+    private void countdownDialog(long suggested) {
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        input.setText(String.valueOf(suggested));
+        input.setSelectAllOnFocus(true);
+        input.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26);
+        AlertDialog d = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Count down from (" + Odometer.unit(this) + ")")
+                .setView(input)
+                .setPositiveButton("Start", null)
+                .setNegativeButton("Cancel", null)
+                .create();
+        Runnable start = () -> {
+            int value;
+            try { value = Integer.parseInt(input.getText().toString()); }
+            catch (NumberFormatException e) { value = 0; }
+            if (value <= 0) {
+                Toast.makeText(this, "Enter a distance above 0", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Odometer.startCountdown(this, value);
+            d.dismiss();
+        };
+        input.setOnEditorActionListener((v, action, event) -> {
+            if (action != EditorInfo.IME_ACTION_DONE) return false;
+            start.run();
+            return true;
+        });
+        d.getWindow().setGravity(Gravity.TOP);
+        d.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        d.show();
+        d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> start.run()); // stays open on bad input
+        for (int which : new int[]{AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE}) {
+            Button b = d.getButton(which); // big enough to hit in a car
+            b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
+            b.setMinHeight(Ui.dp(64));
+            b.setMinWidth(Ui.dp(140));
+        }
+        input.requestFocus();
+        dialog = d;
     }
 
     // ---- Night screen ------------------------------------------------------------------------
@@ -285,12 +418,12 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         float k = Math.max(0.72f, Math.min(1f, Math.min((cardW - 44) / 384f, (cardH - 36) / 330f)));
         music = new MusicCard(this, this, k);
         if (portrait) {
-            top.addView(buildClock(), new LinearLayout.LayoutParams(-1, 0, 0.38f));
+            top.addView(buildClockColumn(), new LinearLayout.LayoutParams(-1, 0, 0.38f));
             LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-1, 0, 0.62f);
             ml.topMargin = Ui.dp(16);
             top.addView(music.root, ml);
         } else {
-            top.addView(buildClock(), new LinearLayout.LayoutParams(0, -1, 0.44f));
+            top.addView(buildClockColumn(), new LinearLayout.LayoutParams(0, -1, 0.44f));
             LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(0, -1, 0.56f);
             ml.leftMargin = Ui.dp(24);
             top.addView(music.root, ml);
@@ -320,6 +453,17 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         night = new NightScreen(this, this::hideNight);
         root.addView(night.root, new FrameLayout.LayoutParams(-1, -1));
         return root;
+    }
+
+    /** The distance reading (when on) in the top left corner, the clock in the room below it. */
+    private View buildClockColumn() {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        homeKm = buildKm();
+        homeKm.setPadding(Ui.dp(14), 0, Ui.dp(12), Ui.dp(6));
+        col.addView(homeKm, Ui.lp(-2, -2));
+        col.addView(buildClock(), new LinearLayout.LayoutParams(-1, 0, 1));
+        return col;
     }
 
     private View buildClock() {
@@ -462,6 +606,10 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
         cl.leftMargin = Ui.dp(16);
         header.addView(drawerCount, cl);
         header.addView(Ui.space(this), new LinearLayout.LayoutParams(0, 1, 1));
+        drawerKm = buildKm();
+        LinearLayout.LayoutParams ol = Ui.lp(-2, -2);
+        ol.rightMargin = Ui.dp(8);
+        header.addView(drawerKm, ol);
         LinearLayout files = Ui.pill(this, R.drawable.ic_folder, "Files", Ui.RAISED, Ui.TEXT, 20);
         files.setOnClickListener(v -> startActivity(new Intent(this, Files.class)));
         header.addView(files, Ui.lp(-2, Ui.dp(62)));
@@ -570,7 +718,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
 
     private void toolsMenu() {
         dialog = BigMenu.show(this, "Tools", null, new String[]{"Check for updates", "Activity", "Firewall",
-                "Debloat", PcLink.running() ? "PC link (on)" : "PC link", "Night screen", "Spotify ready", "Setup", "Cancel"}, idx -> {
+                "Debloat", PcLink.running() ? "PC link (on)" : "PC link", "Night screen", "Spotify ready", "Setup", "Distance", "Cancel"}, idx -> {
             if (idx == 0) checkUpdates();
             else if (idx == 1) startActivity(new Intent(this, Monitor.class));
             else if (idx == 2) startActivity(new Intent(this, Network.class));
@@ -582,6 +730,7 @@ public class Home extends Activity implements MediaListener.Listener, Apps.Liste
             else if (idx == 5) startActivity(new Intent(this, NightSettings.class));
             else if (idx == 6) spotifyMenu();
             else if (idx == 7) startActivity(new Intent(this, Setup.class));
+            else if (idx == 8) distanceMenu();
         });
     }
 
